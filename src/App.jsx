@@ -12,12 +12,13 @@ import Restaurant from './pages/Restaurant'
 import Cart       from './pages/Cart'
 import Orders     from './pages/Orders'
 import Profile    from './pages/Profile'
-import Vault      from './pages/Vault'
+import Vault           from './pages/Vault'
+import SavedAddresses  from './pages/SavedAddresses'
 
 import { supabase } from './supabaseClient'
 
 // Pages that show Navbar + BottomNav
-const SHELL_ROUTES = ['/', '/cart', '/orders', '/profile']
+const SHELL_ROUTES = ['/', '/cart', '/orders', '/profile', '/addresses']
 
 function AppShell() {
   const location = useLocation()
@@ -36,6 +37,7 @@ function AppShell() {
         <Route path="/orders"          element={<ProtectedRoute><Orders /></ProtectedRoute>} />
         <Route path="/profile"         element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/vault"           element={<ProtectedRoute><Vault /></ProtectedRoute>} />
+        <Route path="/addresses"       element={<ProtectedRoute><SavedAddresses /></ProtectedRoute>} />
         <Route path="*"               element={<Navigate to="/" replace />} />
       </Routes>
       {showShell && <BottomNav />}

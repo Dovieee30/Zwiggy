@@ -9,10 +9,12 @@ export function SafetyProvider({ children }) {
   const [safetyMode, setSafetyMode] = useState(
     () => localStorage.getItem('appMode') === 'safety'
   )
+  const [sosActive, setSosActive] = useState(false)
 
   const mediaRecorderRef = useRef(null)
-  const audioChunksRef  = useRef([])
-  const startTimeRef    = useRef(null)
+  const audioChunksRef   = useRef([])
+  const startTimeRef     = useRef(null)
+  const sosIntervalRef   = useRef(null)
 
   const activateSafetyMode = useCallback(() => {
     localStorage.setItem('appMode', 'safety')
@@ -28,6 +30,54 @@ export function SafetyProvider({ children }) {
     )
   })
 
+  // ─── SOS ────────────────────────────────────────────────────────────────────
+  const sendSOS = useCallback(async () => {
+    if (sosActive) return // already running
+
+    const gps = await getGPS()
+    const mapLink = gps
+      ? `https://maps.google.com/?q=${gps.lat},${gps.lng}`
+      : 'Location unavailable'
+    const time = new Date().toLocaleString()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: contacts } = await supabase
+      .from('sos_contacts')
+      .select('*')
+      .eq('user_id', user.id)
+
+    if (!contacts || contacts.length === 0) return
+
+    const dispatchMessages = () => {
+      const msg = encodeURIComponent(
+        `🚨 URGENT: I need help! My location: ${mapLink} — Time: ${new Date().toLocaleString()}`
+      )
+      contacts.forEach(c => {
+        if (c.phone) window.open(`https://wa.me/91${c.phone}?text=${msg}`, '_blank')
+      })
+    }
+
+    // Send immediately
+    dispatchMessages()
+    setSosActive(true)
+
+    // Retry every 3 minutes
+    sosIntervalRef.current = setInterval(() => {
+      dispatchMessages()
+    }, 3 * 60 * 1000)
+  }, [sosActive])
+
+  const cancelSOS = useCallback(() => {
+    if (sosIntervalRef.current) {
+      clearInterval(sosIntervalRef.current)
+      sosIntervalRef.current = null
+    }
+    setSosActive(false)
+  }, [])
+
+  // ─── Recording ──────────────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
     if (isRecording) return
     try {
@@ -43,7 +93,7 @@ export function SafetyProvider({ children }) {
       // GPS in background
       getGPS().then(setCurrentGPS)
 
-      // Fake notification
+      // Fake notification (decoy)
       if ('Notification' in window) {
         Notification.requestPermission().then(p => {
           if (p === 'granted') new Notification('Zwiggy', {
@@ -72,7 +122,6 @@ export function SafetyProvider({ children }) {
 
     if (!save) return
 
-    // Wait for last chunk
     await new Promise(r => setTimeout(r, 600))
 
     try {
@@ -107,7 +156,11 @@ export function SafetyProvider({ children }) {
   }, [currentGPS])
 
   return (
-    <SafetyContext.Provider value={{ isRecording, currentGPS, safetyMode, activateSafetyMode, startRecording, stopRecording }}>
+    <SafetyContext.Provider value={{
+      isRecording, currentGPS, safetyMode, sosActive,
+      activateSafetyMode, startRecording, stopRecording,
+      sendSOS, cancelSOS,
+    }}>
       {children}
     </SafetyContext.Provider>
   )
@@ -118,3 +171,4 @@ export function useSafety() {
   if (!ctx) throw new Error('useSafety must be used within SafetyProvider')
   return ctx
 }
+

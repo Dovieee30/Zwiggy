@@ -17,29 +17,47 @@ export default function Orders() {
   const { safetyMode } = useSafety()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showVault, setShowVault] = useState(false)
+  const [tapCount, setTapCount]   = useState(0)
 
   useEffect(() => {
     const load = async () => {
-      if (safetyMode) return; // don't load regular orders in safety mode
       setLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
-
       const { data: ords } = await supabase
         .from('orders')
         .select('*, restaurants(name)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        
       setOrders(ords || [])
       setLoading(false)
     }
     load()
-  }, [safetyMode])
+  }, [])
 
-  if (safetyMode) {
-    return <Vault />
+  // Reset tap count after 1 second
+  useEffect(() => {
+    if (tapCount > 0) {
+      const t = setTimeout(() => setTapCount(0), 1000)
+      return () => clearTimeout(t)
+    }
+  }, [tapCount])
+
+  // Triple-tap header → toggle vault (only in safety mode)
+  const handleHeaderTap = () => {
+    if (!safetyMode) return
+    setTapCount(prev => {
+      const next = prev + 1
+      if (next === 3) {
+        setShowVault(v => !v)
+        return 0
+      }
+      return next
+    })
   }
+
+  if (showVault) return <Vault onBack={() => setShowVault(false)} />
 
   if (loading) return (
     <div className="min-h-screen flex flex-col gap-3 p-4 pb-24" style={{ backgroundColor: '#F2F2F2' }}>
@@ -52,7 +70,14 @@ export default function Orders() {
   return (
     <div className="min-h-screen pb-24 md:pb-6" style={{ backgroundColor: '#F2F2F2' }}>
       <div className="max-w-2xl mx-auto px-4 pt-4">
-        <h1 className="text-xl font-bold mb-4" style={{ color: '#282C3F' }}>Your Orders</h1>
+        {/* Triple-tap this heading in safety mode to open vault */}
+        <h1
+          className="text-xl font-bold mb-4 select-none cursor-default"
+          style={{ color: '#282C3F' }}
+          onClick={handleHeaderTap}
+        >
+          Your Orders
+        </h1>
 
         {orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 fade-in">
@@ -66,7 +91,6 @@ export default function Orders() {
               const restaurantName = d.restaurants?.name || 'Restaurant'
               const subtitle = `₹${d.total} • ${statusMap[d.status] || d.status}`
               const time = timeSince(d.created_at)
-
               return (
                 <div
                   key={`order-${d.id}`}
@@ -92,4 +116,5 @@ export default function Orders() {
     </div>
   )
 }
+
 
