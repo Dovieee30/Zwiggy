@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import RestaurantCard from '../components/RestaurantCard'
+import { useSafety } from '../context/SafetyContext'
 
 const CATEGORIES = [
   { label: 'Biryani',      emoji: '🍚' },
@@ -27,10 +28,13 @@ function SkeletonCard() {
 }
 
 export default function Home() {
+  const { safetyMode, isRecording, startRecording, stopRecording } = useSafety()
   const [restaurants, setRestaurants] = useState([])
   const [filtered,    setFiltered]    = useState([])
   const [loading,     setLoading]     = useState(true)
   const [active,      setActive]      = useState(null)
+  
+  const [tapCount, setTapCount] = useState(0)
 
   useEffect(() => { fetchRestaurants() }, [])
 
@@ -48,8 +52,32 @@ export default function Home() {
     setFiltered(restaurants.filter(r => r.cuisine_type?.toLowerCase().includes(cat.toLowerCase())))
   }
 
+  // Triple tap logic
+  const handleTap = () => {
+    if (!safetyMode) return;
+    setTapCount(prev => {
+      const newCount = prev + 1;
+      if (newCount === 3) {
+        if (isRecording) {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+        return 0; // reset after 3
+      }
+      return newCount;
+    });
+  }
+
+  useEffect(() => {
+    if (tapCount > 0) {
+      const timer = setTimeout(() => setTapCount(0), 1000); // 1-second timeout reset
+      return () => clearTimeout(timer);
+    }
+  }, [tapCount]);
+
   return (
-    <div className="pb-24 md:pb-6" style={{ backgroundColor: '#F2F2F2' }}>
+    <div className="pb-24 md:pb-6 min-h-screen" style={{ backgroundColor: '#F2F2F2' }} onClick={handleTap}>
       {/* Promo Banner */}
       <div className="text-white text-center py-2.5 px-4 text-sm font-semibold" style={{ backgroundColor: '#FC8019' }}>
         🎉 50% OFF on first 3 orders | Use code: <span className="font-black bg-white px-1.5 rounded" style={{ color: '#FC8019' }}>WELCOME50</span>
@@ -61,7 +89,7 @@ export default function Home() {
           {CATEGORIES.map(cat => (
             <button
               key={cat.label}
-              onClick={() => handleFilter(cat.label)}
+              onClick={(e) => { e.stopPropagation(); handleFilter(cat.label); }} // prevent triggering background tap
               className="flex-shrink-0 flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl font-medium text-xs transition-all duration-200 border"
               style={{
                 backgroundColor: active === cat.label ? '#FC8019' : 'white',
@@ -90,7 +118,7 @@ export default function Home() {
 
         {/* Grid */}
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4" onClick={(e) => e.stopPropagation()}>
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : filtered.length === 0 ? (
@@ -98,12 +126,12 @@ export default function Home() {
             <div className="text-6xl mb-4">🍽️</div>
             <p className="font-bold text-lg" style={{ color: '#282C3F' }}>No restaurants found</p>
             <p className="text-sm mt-1" style={{ color: '#686B78' }}>Try a different category</p>
-            <button onClick={() => handleFilter(active)} className="mt-4 font-semibold text-sm" style={{ color: '#FC8019' }}>
+            <button onClick={(e) => { e.stopPropagation(); handleFilter(active); }} className="mt-4 font-semibold text-sm" style={{ color: '#FC8019' }}>
               Clear filter
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 fade-in">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 fade-in" onClick={(e) => e.stopPropagation()}>
             {filtered.map(r => <RestaurantCard key={r.id} restaurant={r} />)}
           </div>
         )}
