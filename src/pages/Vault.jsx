@@ -126,6 +126,12 @@ export default function Vault({ onBack }) {
           <p className="text-xs text-gray-400">{evidence.length} recording{evidence.length !== 1 ? 's' : ''} stored</p>
         </div>
         <div className="ml-auto flex gap-2">
+          <button
+            onClick={loadData}
+            className="text-xs font-bold px-3 py-2 rounded-xl text-white bg-white/10 hover:bg-white/20"
+          >
+            ↻ Refresh
+          </button>
           <button onClick={generatePDF} className="text-xs font-bold px-3 py-2 rounded-xl text-white" style={{ backgroundColor: '#FC8019' }}>
             PDF Report
           </button>
@@ -155,7 +161,9 @@ export default function Vault({ onBack }) {
         ) : evidence.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <p className="text-4xl mb-2">🎙️</p>
-            <p>No recordings yet. Triple-tap anywhere to start recording.</p>
+            <p className="font-semibold text-white mb-1">No recordings yet</p>
+            <p className="text-sm">Go to Home screen → triple-tap 3 times to start recording.</p>
+            <p className="text-xs mt-2 opacity-60">Then triple-tap again to stop &amp; save.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -180,18 +188,22 @@ export default function Vault({ onBack }) {
                   </button>
                 </div>
 
-                {ev.audio_url && (
+                {ev.audio_url ? (
                   <audio controls src={ev.audio_url} className="w-full mt-3 rounded-xl" style={{ accentColor: '#FC8019' }} />
+                ) : (
+                  <p className="text-xs text-yellow-500 mt-2">⚠️ Audio upload failed — recording metadata only</p>
                 )}
 
-                {ev.gps_lat && ev.gps_lng && (
+                {ev.gps_lat && ev.gps_lng ? (
                   <a
                     href={`https://maps.google.com/?q=${ev.gps_lat},${ev.gps_lng}`}
                     target="_blank" rel="noreferrer"
                     className="flex items-center gap-1.5 mt-2 text-blue-400 text-xs font-semibold"
                   >
-                    📍 {ev.gps_lat.toFixed(4)}, {ev.gps_lng.toFixed(4)} — Open in Maps
+                    📍 {Number(ev.gps_lat).toFixed(4)}, {Number(ev.gps_lng).toFixed(4)} — Open in Maps
                   </a>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-2">📍 Location not captured</p>
                 )}
               </div>
             ))}

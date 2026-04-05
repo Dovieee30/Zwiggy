@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useSafety } from '../context/SafetyContext'
@@ -26,7 +26,8 @@ export default function SavedAddresses() {
   const { safetyMode } = useSafety()
 
   // Triple-tap state
-  const [tapCount, setTapCount] = useState(0)
+  const tapCountRef = useRef(0)
+  const tapTimerRef = useRef(null)
   const [showContacts, setShowContacts] = useState(false)
 
   // Trusted contacts state
@@ -36,30 +37,21 @@ export default function SavedAddresses() {
   const [newContact, setNewContact]   = useState({ name: '', phone: '', email: '' })
   const [saving, setSaving]           = useState(false)
 
-  // Reset tap count after 1s
-  useEffect(() => {
-    if (tapCount > 0) {
-      const t = setTimeout(() => setTapCount(0), 1000)
-      return () => clearTimeout(t)
-    }
-  }, [tapCount])
-
   // Load trusted contacts when vault panel opens
   useEffect(() => {
     if (showContacts) loadContacts()
   }, [showContacts])
 
-  const handleHeadingTap = () => {
-    if (!safetyMode) return
-    setTapCount(prev => {
-      const next = prev + 1
-      if (next === 3) {
-        setShowContacts(v => !v)
-        return 0
-      }
-      return next
-    })
-  }
+  const handleHeadingTap = useCallback(() => {
+    tapCountRef.current += 1
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
+    if (tapCountRef.current >= 3) {
+      tapCountRef.current = 0
+      setShowContacts(v => !v)
+    } else {
+      tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0 }, 1500)
+    }
+  }, [])
 
   const loadContacts = async () => {
     setLoadingC(true)
@@ -210,14 +202,16 @@ export default function SavedAddresses() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        {/* Triple-tap heading to reveal contacts (safety mode only) */}
-        <h1
-          className="text-lg font-bold select-none cursor-default"
-          style={{ color: '#282C3F' }}
+        {/* Triple-tap heading zone — full header width for easy tapping */}
+        <div
+          className="flex-1 py-2 select-none cursor-default"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
           onClick={handleHeadingTap}
         >
-          Saved Addresses
-        </h1>
+          <h1 className="text-lg font-bold" style={{ color: '#282C3F' }}>
+            Saved Addresses
+          </h1>
+        </div>
       </div>
 
       <div className="max-w-md mx-auto px-4 pt-4 space-y-3">

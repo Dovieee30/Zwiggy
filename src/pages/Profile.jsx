@@ -1,43 +1,41 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useSafety } from '../context/SafetyContext'
 
 export default function Profile() {
   const navigate = useNavigate()
-  const { sendSOS, cancelSOS, sosActive, safetyMode } = useSafety()
-  const [user, setUser] = useState(null)
-  const [tapCount, setTapCount] = useState(0)
+  const { sendSOS, goSafe, sosActive, safetyMode, isRecording } = useSafety()
+  const [user, setUser]       = useState(null)
+
+  // Ref-based tap counter for avatar triple-tap
+  const tapCountRef = useRef(0)
+  const tapTimerRef = useRef(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
   }, [])
 
-  // Reset tap count after 1 second of no taps
-  useEffect(() => {
-    if (tapCount > 0) {
-      const t = setTimeout(() => setTapCount(0), 1000)
-      return () => clearTimeout(t)
-    }
-  }, [tapCount])
-
   const initials = user?.email
     ? user.email.slice(0, 2).toUpperCase()
     : '?'
 
-  const handleAvatarTap = () => {
+  // Triple-tap avatar → send SOS (only in safety mode)
+  const handleAvatarTap = useCallback(() => {
     if (!safetyMode) return
-    setTapCount(prev => {
-      const next = prev + 1
-      if (next === 3) {
-        sendSOS()
-        return 0
-      }
-      return next
-    })
-  }
+    tapCountRef.current += 1
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
+    if (tapCountRef.current >= 3) {
+      tapCountRef.current = 0
+      sendSOS()
+    } else {
+      tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0 }, 1000)
+    }
+  }, [safetyMode, sendSOS])
 
   const handleSignOut = async () => {
+    goSafe() // stop everything before signing out
+    sessionStorage.removeItem('pinCleared')
     await supabase.auth.signOut()
     localStorage.removeItem('appMode')
     navigate('/login')
@@ -55,16 +53,33 @@ export default function Profile() {
     <div className="min-h-screen pb-24 md:pb-6" style={{ backgroundColor: '#F2F2F2' }}>
       <div className="max-w-md mx-auto">
 
-        {/* SOS Active Banner — visible only when SOS is running */}
+        {/* ── I'm Safe Banner — only when SOS is active ── */}
         {sosActive && (
-          <div className="bg-red-600 text-white text-center py-3 px-4 flex items-center justify-between">
-            <span className="text-sm font-bold animate-pulse">🆘 SOS Active — retrying every 3 min</span>
+          <div
+            className="text-white px-4 py-3 flex items-center justify-between"
+            style={{ backgroundColor: '#dc2626' }}
+          >
+            <div>
+              <p className="text-sm font-black animate-pulse">🆘 SOS Active</p>
+              <p className="text-xs opacity-80 mt-0.5">Sending alerts every 3 min</p>
+            </div>
             <button
-              onClick={cancelSOS}
-              className="bg-white text-red-600 text-xs font-black px-3 py-1 rounded-full ml-3 flex-shrink-0"
+              onClick={goSafe}
+              className="bg-white text-red-600 text-xs font-black px-4 py-2 rounded-full ml-3 flex-shrink-0 shadow-md active:scale-95 transition-transform"
             >
-              I'm Safe ✓
+              ✅ I'm Safe
             </button>
+          </div>
+        )}
+
+        {/* ── Recording indicator ── */}
+        {isRecording && (
+          <div
+            className="text-white px-4 py-2 flex items-center gap-2"
+            style={{ backgroundColor: '#7c3aed' }}
+          >
+            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            <p className="text-xs font-semibold">Recording in progress…</p>
           </div>
         )}
 
@@ -73,11 +88,15 @@ export default function Profile() {
           {/* Avatar — triple-tap (in safety mode) → send SOS */}
           <div
             onClick={handleAvatarTap}
-            className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-black cursor-pointer select-none shadow-lg active:opacity-80 transition-opacity"
-            style={{ backgroundColor: sosActive ? '#dc2626' : '#FC8019' }}
+            className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-black cursor-pointer select-none shadow-lg active:opacity-80 transition-all duration-200"
+            style={{
+              backgroundColor: sosActive ? '#dc2626' : '#FC8019',
+            }}
           >
             {sosActive ? '🆘' : initials}
           </div>
+
+
           <div className="text-center">
             <p className="font-bold text-lg" style={{ color: '#282C3F' }}>
               {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
@@ -122,4 +141,3 @@ export default function Profile() {
     </div>
   )
 }
-

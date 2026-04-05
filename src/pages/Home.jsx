@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import RestaurantCard from '../components/RestaurantCard'
 import { useSafety } from '../context/SafetyContext'
@@ -28,13 +28,15 @@ function SkeletonCard() {
 }
 
 export default function Home() {
-  const { safetyMode, isRecording, startRecording, stopRecording } = useSafety()
+  const { safetyMode, isRecording, isRecordingRef, startRecording, stopRecording } = useSafety()
   const [restaurants, setRestaurants] = useState([])
   const [filtered,    setFiltered]    = useState([])
   const [loading,     setLoading]     = useState(true)
   const [active,      setActive]      = useState(null)
-  
-  const [tapCount, setTapCount] = useState(0)
+
+  // ── Ref-based tap counter (no setState, no stale closures) ──
+  const tapCountRef = useRef(0)
+  const tapTimerRef = useRef(null)
 
   useEffect(() => { fetchRestaurants() }, [])
 
@@ -52,29 +54,30 @@ export default function Home() {
     setFiltered(restaurants.filter(r => r.cuisine_type?.toLowerCase().includes(cat.toLowerCase())))
   }
 
-  // Triple tap logic
-  const handleTap = () => {
-    if (!safetyMode) return;
-    setTapCount(prev => {
-      const newCount = prev + 1;
-      if (newCount === 3) {
-        if (isRecording) {
-          stopRecording();
-        } else {
-          startRecording();
-        }
-        return 0; // reset after 3
-      }
-      return newCount;
-    });
-  }
+  // Triple-tap: pure ref logic — no setState, side effects fire directly
+  const handleTap = useCallback(() => {
+    if (!safetyMode) return
 
-  useEffect(() => {
-    if (tapCount > 0) {
-      const timer = setTimeout(() => setTapCount(0), 1000); // 1-second timeout reset
-      return () => clearTimeout(timer);
+    tapCountRef.current += 1
+
+    // Clear any pending reset timer
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
+
+    if (tapCountRef.current >= 3) {
+      // ✅ Fire here — NOT inside a setState updater
+      tapCountRef.current = 0
+      if (isRecordingRef.current) {
+        stopRecording()
+      } else {
+        startRecording()
+      }
+    } else {
+      // Reset count if no 3rd tap within 1 second
+      tapTimerRef.current = setTimeout(() => {
+        tapCountRef.current = 0
+      }, 1000)
     }
-  }, [tapCount]);
+  }, [safetyMode, isRecordingRef, startRecording, stopRecording])
 
   return (
     <div className="pb-24 md:pb-6 min-h-screen" style={{ backgroundColor: '#F2F2F2' }} onClick={handleTap}>
@@ -82,6 +85,14 @@ export default function Home() {
       <div className="text-white text-center py-2.5 px-4 text-sm font-semibold" style={{ backgroundColor: '#FC8019' }}>
         🎉 50% OFF on first 3 orders | Use code: <span className="font-black bg-white px-1.5 rounded" style={{ color: '#FC8019' }}>WELCOME50</span>
       </div>
+
+      {/* Recording status — disguised as delivery tracker */}
+      {isRecording && (
+        <div className="text-white text-center py-2 px-4 text-xs font-medium flex items-center justify-center gap-2" style={{ backgroundColor: '#2d6a4f' }}>
+          <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+          Your order is being prepared… tracking live
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 pt-4">
         {/* Category chips */}

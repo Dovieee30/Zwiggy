@@ -33,10 +33,12 @@ export default function Login() {
       }
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) { setError(error.message); setLoading(false); return }
+      sessionStorage.removeItem('pinCleared') // force PIN gate on next load
       setMode('pin')
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) { setError(error.message); setLoading(false); return }
+      sessionStorage.removeItem('pinCleared') // force PIN gate on next load
       setMode('pin')
     }
     setLoading(false)

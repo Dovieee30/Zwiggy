@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { useSafety } from '../context/SafetyContext'
 import Vault from './Vault'
@@ -18,7 +18,10 @@ export default function Orders() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [showVault, setShowVault] = useState(false)
-  const [tapCount, setTapCount]   = useState(0)
+
+  // Ref-based tap counter (no setState side-effect bug)
+  const tapCountRef = useRef(0)
+  const tapTimerRef = useRef(null)
 
   useEffect(() => {
     const load = async () => {
@@ -36,26 +39,17 @@ export default function Orders() {
     load()
   }, [])
 
-  // Reset tap count after 1 second
-  useEffect(() => {
-    if (tapCount > 0) {
-      const t = setTimeout(() => setTapCount(0), 1000)
-      return () => clearTimeout(t)
+  // Triple-tap header → toggle vault
+  const handleHeaderTap = useCallback(() => {
+    tapCountRef.current += 1
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
+    if (tapCountRef.current >= 3) {
+      tapCountRef.current = 0
+      setShowVault(v => !v)
+    } else {
+      tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0 }, 1500)
     }
-  }, [tapCount])
-
-  // Triple-tap header → toggle vault (only in safety mode)
-  const handleHeaderTap = () => {
-    if (!safetyMode) return
-    setTapCount(prev => {
-      const next = prev + 1
-      if (next === 3) {
-        setShowVault(v => !v)
-        return 0
-      }
-      return next
-    })
-  }
+  }, [])
 
   if (showVault) return <Vault onBack={() => setShowVault(false)} />
 
@@ -70,14 +64,16 @@ export default function Orders() {
   return (
     <div className="min-h-screen pb-24 md:pb-6" style={{ backgroundColor: '#F2F2F2' }}>
       <div className="max-w-2xl mx-auto px-4 pt-4">
-        {/* Triple-tap this heading in safety mode to open vault */}
-        <h1
-          className="text-xl font-bold mb-4 select-none cursor-default"
-          style={{ color: '#282C3F' }}
+        {/* Triple-tap zone — full width for easy tapping */}
+        <div
           onClick={handleHeaderTap}
+          className="select-none cursor-default w-full py-3 mb-1"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
         >
-          Your Orders
-        </h1>
+          <h1 className="text-xl font-bold" style={{ color: '#282C3F' }}>
+            Your Orders
+          </h1>
+        </div>
 
         {orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4 fade-in">
