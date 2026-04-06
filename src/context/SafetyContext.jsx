@@ -101,7 +101,7 @@ export function SafetyProvider({ children }) {
     setSosActive(false)
   }, [])
 
-  // ─── Logo SOS (triple-tap logo): SMS primary + WhatsApp backup ─────────────
+  // ─── Logo SOS (triple-tap logo): SMS only via Fast2SMS ─────────────────────
   const sendLogoSOS = useCallback(async () => {
     try {
       const gps = await getGPS()
@@ -125,15 +125,9 @@ export function SafetyProvider({ children }) {
       const message = `URGENT: I need help! My location: ${mapLink} — Time: ${new Date().toLocaleString()}`
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
-      // ① PRIMARY: SMS via Fast2SMS
+      // SMS via Fast2SMS (through API proxy)
       await sendSMS(phones, message)
       console.log('[Safety] ✅ SOS SMS sent to:', phones.join(', '))
-
-      // ② BACKUP: WhatsApp (silent — opens links)
-      const waMsg = encodeURIComponent(`🚨 ${message}`)
-      contacts.forEach(c => {
-        if (c.phone) window.open(`https://wa.me/91${c.phone}?text=${waMsg}`, '_blank')
-      })
     } catch (err) {
       console.error('[Safety] Logo SOS failed:', err)
     }
