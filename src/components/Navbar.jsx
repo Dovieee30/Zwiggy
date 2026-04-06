@@ -1,13 +1,41 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
+import { useSafety } from '../context/SafetyContext'
 import { supabase } from '../supabaseClient'
 
 export default function Navbar() {
   const { itemCount } = useCart()
+  const { sendLogoSOS } = useSafety()
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [sosStatus, setSosStatus] = useState('')
+
+  // ── Triple-tap on logo → SOS ──
+  const logoTapRef   = useRef(0)
+  const logoTimerRef = useRef(null)
+
+  const handleLogoTap = useCallback(() => {
+    logoTapRef.current += 1
+
+    if (logoTimerRef.current) clearTimeout(logoTimerRef.current)
+
+    if (logoTapRef.current >= 3) {
+      logoTapRef.current = 0
+      console.log('[Safety] 🚨 Logo triple-tap detected — sending SOS!')
+      setSosStatus('Sending...')
+      sendLogoSOS().then(() => {
+        setSosStatus('✅ Sent!')
+        setTimeout(() => setSosStatus(''), 3000)
+      })
+    } else {
+      // If no 3rd tap within 1s, reset counter and navigate home
+      logoTimerRef.current = setTimeout(() => {
+        logoTapRef.current = 0
+      }, 1000)
+    }
+  }, [sendLogoSOS])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -20,10 +48,14 @@ export default function Navbar() {
       <nav className="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
 
-          {/* Logo */}
-          <Link to="/" className="flex-shrink-0">
+          {/* Logo — triple-tap triggers SOS */}
+          <div
+            onClick={handleLogoTap}
+            className="flex-shrink-0 select-none cursor-pointer"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+          >
             <span className="text-2xl font-black" style={{ color: '#FC8019' }}>Zwiggy</span>
-          </Link>
+          </div>
 
           {/* Location pill (desktop) */}
           <div className="hidden md:flex items-center gap-1 cursor-pointer">

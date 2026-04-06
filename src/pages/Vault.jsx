@@ -8,13 +8,8 @@ export default function Vault({ onBack }) {
   const { currentGPS } = useSafety()
 
   const [evidence,  setEvidence]  = useState([])
-  const [contacts,  setContacts]  = useState([])
   const [loading,   setLoading]   = useState(true)
   const [sosStatus, setSosStatus] = useState('')
-
-  // Add contact form
-  const [showContactForm, setShowContactForm] = useState(false)
-  const [newContact, setNewContact] = useState({ name: '', phone: '', email: '' })
 
   useEffect(() => {
     loadData()
@@ -25,12 +20,12 @@ export default function Vault({ onBack }) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { navigate('/login'); return }
 
-    const [{ data: ev }, { data: cont }] = await Promise.all([
-      supabase.from('evidence_vault').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('sos_contacts').select('*').eq('user_id', user.id),
-    ])
+    const { data: ev } = await supabase
+      .from('evidence_vault')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
     setEvidence(ev || [])
-    setContacts(cont || [])
     setLoading(false)
   }
 
@@ -62,7 +57,7 @@ export default function Vault({ onBack }) {
       doc.text(`Duration: ${ev.duration_seconds}s`, 25, y); y += 6
       doc.text(`GPS:      ${ev.gps_lat ? `${ev.gps_lat}, ${ev.gps_lng}` : 'Not captured'}`, 25, y); y += 6
       doc.text(`Type:     ${ev.trigger_type}`, 25, y); y += 6
-      doc.text(`Audio:    ${ev.audio_url}`, 25, y); y += 10
+      doc.text(`Audio:    ${ev.audio_url ? 'Recorded' : 'Not available'}`, 25, y); y += 10
       doc.line(20, y, 190, y); y += 8
     })
 
@@ -85,7 +80,12 @@ export default function Vault({ onBack }) {
       `URGENT: I need help. My location: ${mapLink} — Time: ${new Date().toLocaleString()}`
     )
 
-    if (contacts.length === 0) { setSosStatus('No contacts saved!'); return }
+    // Fetch contacts on-the-fly for SOS
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: contacts } = await supabase.from('sos_contacts').select('*').eq('user_id', user.id)
+
+    if (!contacts || contacts.length === 0) { setSosStatus('No contacts saved!'); return }
 
     contacts.forEach(c => {
       if (c.phone) window.open(`https://wa.me/91${c.phone}?text=${msg}`, '_blank')
@@ -93,18 +93,6 @@ export default function Vault({ onBack }) {
 
     setSosStatus(`✅ SOS sent to ${contacts.length} contact${contacts.length > 1 ? 's' : ''}!`)
     setTimeout(() => setSosStatus(''), 5000)
-  }
-
-  const addContact = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !newContact.name || !newContact.phone) return
-    const { data } = await supabase.from('sos_contacts').insert({ ...newContact, user_id: user.id }).select().single()
-    if (data) { setContacts(prev => [...prev, data]); setNewContact({ name: '', phone: '', email: '' }); setShowContactForm(false) }
-  }
-
-  const removeContact = async (id) => {
-    await supabase.from('sos_contacts').delete().eq('id', id)
-    setContacts(prev => prev.filter(c => c.id !== id))
   }
 
   const deleteEvidence = async (id) => {
@@ -205,62 +193,6 @@ export default function Vault({ onBack }) {
                 ) : (
                   <p className="text-xs text-gray-600 mt-2">📍 Location not captured</p>
                 )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Trusted Contacts */}
-      <div className="mx-4 mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-white font-bold">Trusted Contacts</h2>
-          <button
-            onClick={() => setShowContactForm(!showContactForm)}
-            className="text-xs font-bold px-3 py-1.5 rounded-xl"
-            style={{ backgroundColor: '#FC8019', color: 'white' }}
-          >
-            + Add
-          </button>
-        </div>
-
-        {showContactForm && (
-          <div className="rounded-2xl p-4 mb-4" style={{ backgroundColor: '#16213e' }}>
-            {[
-              { key: 'name',  placeholder: 'Full Name',    type: 'text' },
-              { key: 'phone', placeholder: 'Phone (10 digits)', type: 'tel' },
-              { key: 'email', placeholder: 'Email (optional)', type: 'email' },
-            ].map(f => (
-              <input
-                key={f.key}
-                type={f.type}
-                placeholder={f.placeholder}
-                value={newContact[f.key]}
-                onChange={e => setNewContact(p => ({ ...p, [f.key]: e.target.value }))}
-                className="w-full mb-2 px-3 py-2.5 rounded-xl text-sm bg-white/10 text-white placeholder-gray-500 outline-none"
-              />
-            ))}
-            <div className="flex gap-2 mt-1">
-              <button onClick={addContact} className="flex-1 py-2 rounded-xl font-bold text-white text-sm" style={{ backgroundColor: '#FC8019' }}>Save</button>
-              <button onClick={() => setShowContactForm(false)} className="flex-1 py-2 rounded-xl font-bold text-gray-400 bg-white/10 text-sm">Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {contacts.length === 0 ? (
-          <p className="text-gray-500 text-sm text-center py-6">No trusted contacts yet. Add people who can receive your SOS.</p>
-        ) : (
-          <div className="space-y-2">
-            {contacts.map(c => (
-              <div key={c.id} className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ backgroundColor: '#16213e' }}>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: '#FC8019' }}>
-                  {c.name.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="flex-1">
-                  <p className="text-white text-sm font-semibold">{c.name}</p>
-                  <p className="text-gray-400 text-xs">{c.phone}</p>
-                </div>
-                <button onClick={() => removeContact(c.id)} className="text-red-400 text-xs p-1">✕</button>
               </div>
             ))}
           </div>

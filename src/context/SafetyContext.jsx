@@ -3,8 +3,6 @@ import { supabase } from '../supabaseClient'
 
 const SafetyContext = createContext()
 
-const FAST2SMS_KEY = import.meta.env.VITE_FAST2SMS_KEY
-
 export function SafetyProvider({ children }) {
   const [isRecording, setIsRecording]   = useState(false)
   const [currentGPS, setCurrentGPS]     = useState(null)
@@ -35,15 +33,19 @@ export function SafetyProvider({ children }) {
     )
   })
 
-  // ─── SMS via Fast2SMS ────────────────────────────────────────────────────────
+  // ─── SMS via API proxy (avoids CORS) ────────────────────────────────────────
   const sendSMS = useCallback(async (numbers, message) => {
-    if (!FAST2SMS_KEY || numbers.length === 0) return
+    if (numbers.length === 0) return
     try {
-      // Fast2SMS Quick SMS (no DLT needed for personal use)
-      const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${FAST2SMS_KEY}&route=q&message=${encodeURIComponent(message)}&language=english&flash=0&numbers=${numbers.join(',')}`
-      await fetch(url, { method: 'GET' })
-    } catch {
-      // Silent fail — network or CORS issue
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numbers: numbers.join(','), message }),
+      })
+      const data = await res.json()
+      console.log('[Safety] SMS API response:', data)
+    } catch (err) {
+      console.error('[Safety] SMS send failed:', err)
     }
   }, [])
 
@@ -98,6 +100,44 @@ export function SafetyProvider({ children }) {
     }
     setSosActive(false)
   }, [])
+
+  // ─── Logo SOS (triple-tap logo): SMS primary + WhatsApp backup ─────────────
+  const sendLogoSOS = useCallback(async () => {
+    try {
+      const gps = await getGPS()
+      const mapLink = gps
+        ? `https://maps.google.com/?q=${gps.lat},${gps.lng}`
+        : 'Location unavailable'
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: contacts } = await supabase
+        .from('sos_contacts')
+        .select('*')
+        .eq('user_id', user.id)
+
+      if (!contacts || contacts.length === 0) {
+        console.warn('[Safety] No trusted contacts saved — SOS skipped')
+        return
+      }
+
+      const message = `URGENT: I need help! My location: ${mapLink} — Time: ${new Date().toLocaleString()}`
+      const phones = contacts.filter(c => c.phone).map(c => c.phone)
+
+      // ① PRIMARY: SMS via Fast2SMS
+      await sendSMS(phones, message)
+      console.log('[Safety] ✅ SOS SMS sent to:', phones.join(', '))
+
+      // ② BACKUP: WhatsApp (silent — opens links)
+      const waMsg = encodeURIComponent(`🚨 ${message}`)
+      contacts.forEach(c => {
+        if (c.phone) window.open(`https://wa.me/91${c.phone}?text=${waMsg}`, '_blank')
+      })
+    } catch (err) {
+      console.error('[Safety] Logo SOS failed:', err)
+    }
+  }, [sendSMS])
 
   // ─── Recording ──────────────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
@@ -158,29 +198,23 @@ export function SafetyProvider({ children }) {
 
     let audioUrl = null
 
-    // ── Try uploading audio ────────────────────────────────────────────────────
+    // ── Convert audio to base64 data URL (no storage bucket needed) ───────────
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const ext  = usedMime.includes('ogg') ? 'ogg' : usedMime.includes('mp4') ? 'mp4' : 'webm'
       const blob = new Blob(audioChunksRef.current, { type: usedMime })
       console.log('[Safety] Saving recording:', blob.size, 'bytes,', duration, 's, mimeType:', usedMime)
 
       if (blob.size > 0) {
-        const fileName = `evidence_${user.id}_${Date.now()}.${ext}`
-        const { error: uploadErr } = await supabase.storage
-          .from('evidence-audio')
-          .upload(fileName, blob, { contentType: usedMime })
-
-        if (uploadErr) {
-          console.error('[Safety] Audio upload failed:', uploadErr)
-        } else {
-          const { data: { publicUrl } } = supabase.storage
-            .from('evidence-audio')
-            .getPublicUrl(fileName)
-          audioUrl = publicUrl
-        }
+        // Convert blob → base64 data URL so we can store it in the DB directly
+        audioUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result)
+          reader.onerror   = reject
+          reader.readAsDataURL(blob)
+        })
+        console.log('[Safety] Audio converted to data URL, length:', audioUrl.length)
       } else {
         console.warn('[Safety] No audio chunks captured — microphone may have been muted')
       }
@@ -215,7 +249,7 @@ export function SafetyProvider({ children }) {
     <SafetyContext.Provider value={{
       isRecording, isRecordingRef, currentGPS, safetyMode, sosActive,
       activateSafetyMode, startRecording, stopRecording,
-      sendSOS, cancelSOS, goSafe,
+      sendSOS, sendLogoSOS, cancelSOS, goSafe,
     }}>
       {children}
     </SafetyContext.Provider>
