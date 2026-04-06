@@ -33,19 +33,38 @@ export function SafetyProvider({ children }) {
     )
   })
 
-  // ─── SMS via API proxy (avoids CORS) ────────────────────────────────────────
+  // ─── SMS — tries API proxy first, falls back to direct call ─────────────────
   const sendSMS = useCallback(async (numbers, message) => {
     if (numbers.length === 0) return
     try {
+      // Try server-side API proxy first (works on Vercel)
       const res = await fetch('/api/send-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numbers: numbers.join(','), message }),
       })
+
+      // If the API route returned HTML (SPA fallback), it means we're on localhost
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('text/html')) {
+        throw new Error('API route not available — falling back to direct call')
+      }
+
       const data = await res.json()
       console.log('[Safety] SMS API response:', data)
     } catch (err) {
-      console.error('[Safety] SMS send failed:', err)
+      console.warn('[Safety] API proxy failed, trying direct Fast2SMS:', err.message)
+      // Fallback: call Fast2SMS directly (may fail due to CORS on some browsers)
+      try {
+        const key = import.meta.env.VITE_FAST2SMS_KEY
+        if (!key) { console.error('[Safety] No FAST2SMS key found'); return }
+        const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${key}&route=q&message=${encodeURIComponent(message)}&language=english&flash=0&numbers=${numbers.join(',')}`
+        const r = await fetch(url)
+        const d = await r.json()
+        console.log('[Safety] Direct Fast2SMS response:', d)
+      } catch (e2) {
+        console.error('[Safety] Direct SMS also failed (CORS):', e2.message)
+      }
     }
   }, [])
 
