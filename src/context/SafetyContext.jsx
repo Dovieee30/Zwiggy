@@ -33,37 +33,55 @@ export function SafetyProvider({ children }) {
     )
   })
 
-  // ─── SMS — tries API proxy first, falls back to direct call ─────────────────
+  // ─── SMS — Textbelt API proxy (FREE) + native sms: fallback ─────────────────
   const sendSMS = useCallback(async (numbers, message) => {
-    if (numbers.length === 0) return
+    if (numbers.length === 0) {
+      console.warn('[Safety] sendSMS called with 0 numbers — skipping')
+      return
+    }
+
+    console.log('[Safety] Sending SMS to:', numbers.join(', '))
+
+    let apiSucceeded = false
+
+    // ── Layer 1: Textbelt via Vercel API proxy (FREE — 1 SMS/day) ────────────
     try {
-      // Try server-side API proxy first (works on Vercel)
       const res = await fetch('/api/send-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numbers: numbers.join(','), message }),
       })
 
-      // If the API route returned HTML (SPA fallback), it means we're on localhost
       const contentType = res.headers.get('content-type') || ''
       if (contentType.includes('text/html')) {
-        throw new Error('API route not available — falling back to direct call')
+        throw new Error('API route not available (got HTML)')
       }
 
       const data = await res.json()
-      console.log('[Safety] SMS API response:', data)
+      console.log('[Safety] Textbelt API response (status ' + res.status + '):', data)
+
+      if (data.return || data.results?.some(r => r.success)) {
+        console.log('[Safety] ✅ SMS sent via Textbelt!')
+        apiSucceeded = true
+      } else {
+        console.warn('[Safety] Textbelt could not deliver:', data.message || JSON.stringify(data.results))
+      }
     } catch (err) {
-      console.warn('[Safety] API proxy failed, trying direct Fast2SMS:', err.message)
-      // Fallback: call Fast2SMS directly (may fail due to CORS on some browsers)
+      console.warn('[Safety] API proxy failed:', err.message)
+    }
+
+    // ── Layer 2: Native SMS app fallback (opens phone's SMS with pre-filled message) ──
+    if (!apiSucceeded) {
+      console.log('[Safety] Falling back to native SMS app...')
       try {
-        const key = import.meta.env.VITE_FAST2SMS_KEY
-        if (!key) { console.error('[Safety] No FAST2SMS key found'); return }
-        const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${key}&route=q&message=${encodeURIComponent(message)}&language=english&flash=0&numbers=${numbers.join(',')}`
-        const r = await fetch(url)
-        const d = await r.json()
-        console.log('[Safety] Direct Fast2SMS response:', d)
-      } catch (e2) {
-        console.error('[Safety] Direct SMS also failed (CORS):', e2.message)
+        const smsBody = encodeURIComponent(message)
+        const smsNumbers = numbers.join(',')
+        // sms: URI opens the phone's built-in SMS app — 100% free, works offline
+        const smsLink = `sms:${smsNumbers}?body=${smsBody}`
+        window.open(smsLink, '_self')
+        console.log('[Safety] ✅ Opened native SMS app with pre-filled message')
+      } catch (e) {
+        console.error('[Safety] Native SMS fallback failed:', e.message)
       }
     }
   }, [])
@@ -120,35 +138,60 @@ export function SafetyProvider({ children }) {
     setSosActive(false)
   }, [])
 
-  // ─── Logo SOS (triple-tap logo): SMS only via Fast2SMS ─────────────────────
+  // ─── Logo SOS (triple-tap logo): Textbelt SMS + WhatsApp backup ─────────────
   const sendLogoSOS = useCallback(async () => {
+    console.log('[Safety] 🚨 sendLogoSOS triggered')
     try {
       const gps = await getGPS()
       const mapLink = gps
         ? `https://maps.google.com/?q=${gps.lat},${gps.lng}`
         : 'Location unavailable'
+      console.log('[Safety] GPS:', mapLink)
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        console.error('[Safety] ❌ No authenticated user — cannot send SOS')
+        return
+      }
+      console.log('[Safety] User:', user.id)
 
-      const { data: contacts } = await supabase
+      const { data: contacts, error: contactsErr } = await supabase
         .from('sos_contacts')
         .select('*')
         .eq('user_id', user.id)
 
-      if (!contacts || contacts.length === 0) {
-        console.warn('[Safety] No trusted contacts saved — SOS skipped')
+      if (contactsErr) {
+        console.error('[Safety] ❌ Error fetching contacts:', contactsErr)
         return
       }
+
+      if (!contacts || contacts.length === 0) {
+        console.warn('[Safety] ⚠️ No trusted contacts saved — SOS skipped. Add contacts in Saved Addresses.')
+        return
+      }
+
+      console.log('[Safety] Found', contacts.length, 'contacts:', contacts.map(c => c.phone))
 
       const message = `URGENT: I need help! My location: ${mapLink} — Time: ${new Date().toLocaleString()}`
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
-      // SMS via Fast2SMS (through API proxy)
+      if (phones.length === 0) {
+        console.error('[Safety] ❌ Contacts found but none have phone numbers')
+        return
+      }
+
+      // Layer 1: SMS via Textbelt (through API proxy → falls back to native sms: app)
       await sendSMS(phones, message)
-      console.log('[Safety] ✅ SOS SMS sent to:', phones.join(', '))
+
+      // Layer 2: WhatsApp backup — opens WhatsApp with pre-filled message
+      const waMsg = encodeURIComponent(`🚨 ${message}`)
+      phones.forEach(phone => {
+        window.open(`https://wa.me/91${phone}?text=${waMsg}`, '_blank')
+      })
+
+      console.log('[Safety] ✅ SOS dispatched to:', phones.join(', '))
     } catch (err) {
-      console.error('[Safety] Logo SOS failed:', err)
+      console.error('[Safety] ❌ Logo SOS failed:', err)
     }
   }, [sendSMS])
 

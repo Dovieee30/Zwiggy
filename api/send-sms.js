@@ -1,40 +1,56 @@
-// Vercel Serverless Function — proxies Fast2SMS to avoid browser CORS
+// Vercel Serverless Function — sends SMS via Textbelt (FREE, no signup needed)
 export default async function handler(req, res) {
-  // Only allow POST
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
+  if (req.method === 'OPTIONS') return res.status(200).end()
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   const { numbers, message } = req.body || {}
-  const apiKey = process.env.VITE_FAST2SMS_KEY
-
-  console.log('[SMS Proxy] Received request — numbers:', numbers, 'apiKey exists:', !!apiKey)
-
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Fast2SMS key not configured on server' })
-  }
 
   if (!numbers || !message) {
     return res.status(400).json({ error: 'Missing numbers or message' })
   }
 
-  try {
-    const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${apiKey}&route=q&message=${encodeURIComponent(message)}&language=english&flash=0&numbers=${numbers}`
+  // Split comma-separated numbers
+  const phoneList = numbers.split(',').map(n => n.trim()).filter(Boolean)
+  console.log('[SMS Proxy] Sending to', phoneList.length, 'numbers via Textbelt')
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Cache-Control': 'no-cache' },
-    })
-    const data = await response.json()
+  const results = []
 
-    console.log('[SMS Proxy] Fast2SMS response:', JSON.stringify(data))
-    return res.status(200).json(data)
-  } catch (err) {
-    console.error('[SMS Proxy] Error:', err.message)
-    return res.status(500).json({ error: 'SMS send failed', details: err.message })
+  for (const phone of phoneList) {
+    try {
+      // Textbelt needs E.164 format — add +91 for Indian numbers
+      const e164 = phone.startsWith('+') ? phone : `+91${phone}`
+
+      const response = await fetch('https://textbelt.com/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: e164,
+          message: message,
+          key: 'textbelt',   // FREE tier — 1 SMS/day, no signup required
+        }),
+      })
+
+      const data = await response.json()
+      console.log(`[SMS Proxy] Textbelt response for ${e164}:`, JSON.stringify(data))
+      results.push({ phone: e164, ...data })
+    } catch (err) {
+      console.error(`[SMS Proxy] Error sending to ${phone}:`, err.message)
+      results.push({ phone, success: false, error: err.message })
+    }
   }
-}
 
-export const config = {
-  runtime: 'nodejs20.x',
+  const anySuccess = results.some(r => r.success)
+  return res.status(anySuccess ? 200 : 500).json({
+    return: anySuccess,
+    message: anySuccess ? 'SMS sent successfully' : 'All SMS attempts failed',
+    results,
+  })
 }
