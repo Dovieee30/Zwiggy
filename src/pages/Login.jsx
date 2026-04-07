@@ -1,17 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { useSafety } from '../context/SafetyContext'
 
 export default function Login() {
   const navigate = useNavigate()
-  const { activateSafetyMode } = useSafety()
-  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'pin'
+  const [mode, setMode] = useState('login') // 'login' | 'signup'
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [pin, setPin] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -38,88 +35,15 @@ export default function Login() {
         options: { data: { full_name: fullName.trim() } },
       })
       if (error) { setError(error.message); setLoading(false); return }
-      sessionStorage.removeItem('pinCleared') // force PIN gate on next load
-      setMode('pin')
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) { setError(error.message); setLoading(false); return }
-      sessionStorage.removeItem('pinCleared') // force PIN gate on next load
-      setMode('pin')
     }
+
+    // Clear pinCleared so PinGate in App.jsx shows the PIN once
+    sessionStorage.removeItem('pinCleared')
     setLoading(false)
-  }
-
-  const handlePinInput = (digit) => {
-    if (pin.length >= 4) return
-    const newPin = pin + digit
-    setPin(newPin)
-    if (newPin.length === 4) {
-      setTimeout(() => {
-        if (newPin === '5678') {
-          activateSafetyMode()
-        } else {
-          localStorage.setItem('appMode', 'normal')
-        }
-        navigate('/')
-      }, 300)
-    }
-  }
-
-  // PIN Screen
-  if (mode === 'pin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#F2F2F2' }}>
-        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm fade-in">
-          <div className="text-center mb-8">
-            <div className="text-3xl font-black">
-              <span style={{ color: '#FC8019' }}>Zwiggy</span>
-            </div>
-            <p className="text-xl font-bold mt-5" style={{ color: '#282C3F' }}>Enter your PIN</p>
-            <p className="text-sm mt-1" style={{ color: '#686B78' }}>Your 4-digit security PIN</p>
-          </div>
-
-          {/* PIN dots */}
-          <div className="flex justify-center gap-5 mb-8">
-            {[0,1,2,3].map(i => (
-              <div
-                key={i}
-                className="w-4 h-4 rounded-full border-2 transition-all duration-200 scale-in"
-                style={{ backgroundColor: i < pin.length ? '#FC8019' : 'transparent', borderColor: i < pin.length ? '#FC8019' : '#ccc' }}
-              />
-            ))}
-          </div>
-
-          {/* Number pad */}
-          <div className="grid grid-cols-3 gap-3">
-            {[1,2,3,4,5,6,7,8,9].map(n => (
-              <button
-                key={n}
-                onClick={() => handlePinInput(String(n))}
-                className="h-14 text-xl font-semibold rounded-xl bg-gray-50 hover:bg-orange-50 active:bg-orange-100 transition-colors"
-                style={{ color: '#282C3F' }}
-              >
-                {n}
-              </button>
-            ))}
-            <div />
-            <button
-              onClick={() => handlePinInput('0')}
-              className="h-14 text-xl font-semibold rounded-xl bg-gray-50 hover:bg-orange-50 active:bg-orange-100 transition-colors"
-              style={{ color: '#282C3F' }}
-            >
-              0
-            </button>
-            <button
-              onClick={() => setPin(p => p.slice(0, -1))}
-              className="h-14 text-xl rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-center"
-              style={{ color: '#282C3F' }}
-            >
-              ⌫
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+    navigate('/')
   }
 
   // Login / Signup Screen
