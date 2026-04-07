@@ -76,13 +76,17 @@ export default function Vault({ onBack }) {
     }
 
     const mapLink = lat ? `https://maps.google.com/?q=${lat},${lng}` : 'Location unavailable'
+
+    // Fetch user info for personalized message
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Someone'
+
     const msg = encodeURIComponent(
-      `URGENT: I need help. My location: ${mapLink} — Time: ${new Date().toLocaleString()}`
+      `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
     )
 
     // Fetch contacts on-the-fly for SOS
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
     const { data: contacts } = await supabase.from('sos_contacts').select('*').eq('user_id', user.id)
 
     if (!contacts || contacts.length === 0) { setSosStatus('No contacts saved!'); return }
