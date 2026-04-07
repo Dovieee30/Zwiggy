@@ -6,9 +6,14 @@ import { useSafety } from '../context/SafetyContext'
 export default function Profile() {
   const navigate = useNavigate()
   const { sendSOS, goSafe, sosActive, safetyMode, isRecording } = useSafety()
-  const [user, setUser]       = useState(null)
-  const [editingName, setEditingName] = useState(false)
-  const [nameValue, setNameValue] = useState('')
+  const [user, setUser] = useState(null)
+
+  // Edit Profile state
+  const [showEdit, setShowEdit] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
 
   // Ref-based tap counter for avatar triple-tap
   const tapCountRef = useRef(0)
@@ -17,21 +22,33 @@ export default function Profile() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user)
-      setNameValue(user?.user_metadata?.full_name || user?.user_metadata?.name || '')
+      setEditName(user?.user_metadata?.full_name || user?.user_metadata?.name || '')
+      setEditPhone(user?.user_metadata?.phone || user?.phone || '')
     })
   }, [])
 
   const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'
-
-  const saveName = async () => {
-    if (!nameValue.trim()) { setEditingName(false); return }
-    await supabase.auth.updateUser({ data: { full_name: nameValue.trim() } })
-    const { data: { user: updated } } = await supabase.auth.getUser()
-    setUser(updated)
-    setEditingName(false)
-  }
-
   const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
+
+  const saveProfile = async () => {
+    setSaving(true)
+    setSaveMsg('')
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          full_name: editName.trim(),
+          phone: editPhone.trim(),
+        },
+      })
+      const { data: { user: updated } } = await supabase.auth.getUser()
+      setUser(updated)
+      setSaveMsg('✅ Profile updated!')
+      setTimeout(() => { setSaveMsg(''); setShowEdit(false) }, 1500)
+    } catch (err) {
+      setSaveMsg('❌ Failed to save')
+    }
+    setSaving(false)
+  }
 
   // Triple-tap avatar → send SOS (only in safety mode)
   const handleAvatarTap = useCallback(() => {
@@ -47,7 +64,7 @@ export default function Profile() {
   }, [safetyMode, sendSOS])
 
   const handleSignOut = async () => {
-    goSafe() // stop everything before signing out
+    goSafe()
     sessionStorage.removeItem('pinCleared')
     await supabase.auth.signOut()
     localStorage.removeItem('appMode')
@@ -55,6 +72,7 @@ export default function Profile() {
   }
 
   const menuItems = [
+    { label: 'Edit Profile',    icon: '✏️', action: () => setShowEdit(true) },
     { label: 'My Orders',       icon: '📦', action: () => navigate('/orders') },
     { label: 'Saved Addresses', icon: '📍', action: () => navigate('/addresses') },
     { label: 'Payment Methods', icon: '💳', action: () => {} },
@@ -62,16 +80,113 @@ export default function Profile() {
     { label: 'Log Out',         icon: '🚪', action: handleSignOut, danger: true },
   ]
 
+  // ─── Edit Profile Overlay (Swiggy-style) ───────────────────────────────────
+  if (showEdit) {
+    return (
+      <div className="min-h-screen pb-24 md:pb-6" style={{ backgroundColor: '#F2F2F2' }}>
+        <div className="max-w-md mx-auto">
+          {/* Header */}
+          <div className="bg-white px-4 py-4 flex items-center gap-3 shadow-sm sticky top-0 z-10">
+            <button onClick={() => setShowEdit(false)} className="p-2 rounded-full hover:bg-gray-100">
+              <svg className="w-5 h-5" style={{ color: '#282C3F' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-lg font-bold" style={{ color: '#282C3F' }}>Edit Profile</h1>
+          </div>
+
+          {/* Avatar section */}
+          <div className="bg-white mt-2 px-6 py-8 flex flex-col items-center gap-3">
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-black shadow-lg"
+              style={{ backgroundColor: '#FC8019' }}
+            >
+              {initials}
+            </div>
+            <p className="text-xs" style={{ color: '#686B78' }}>Tap avatar to change</p>
+          </div>
+
+          {/* Form fields */}
+          <div className="bg-white mx-4 mt-4 rounded-2xl shadow-sm p-5 space-y-5">
+            {/* Full Name */}
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wide block mb-2" style={{ color: '#93959F' }}>
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                placeholder="Enter your full name"
+                className="w-full border-b-2 pb-2 text-base font-medium outline-none transition-colors focus:border-orange-400"
+                style={{ color: '#282C3F', borderColor: '#e5e7eb' }}
+              />
+            </div>
+
+            {/* Phone */}
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wide block mb-2" style={{ color: '#93959F' }}>
+                Phone Number
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-medium" style={{ color: '#282C3F' }}>+91</span>
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={e => setEditPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit number"
+                  maxLength={10}
+                  className="flex-1 border-b-2 pb-2 text-base font-medium outline-none transition-colors focus:border-orange-400"
+                  style={{ color: '#282C3F', borderColor: '#e5e7eb' }}
+                />
+              </div>
+            </div>
+
+            {/* Email (read-only) */}
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wide block mb-2" style={{ color: '#93959F' }}>
+                Email
+              </label>
+              <p className="text-base font-medium pb-2 border-b-2" style={{ color: '#93959F', borderColor: '#e5e7eb' }}>
+                {user?.email}
+              </p>
+              <p className="text-xs mt-1" style={{ color: '#b5b8c0' }}>Email cannot be changed</p>
+            </div>
+          </div>
+
+          {/* Save button */}
+          <div className="mx-4 mt-6">
+            <button
+              onClick={saveProfile}
+              disabled={saving || !editName.trim()}
+              className="w-full py-4 rounded-2xl font-bold text-white text-base transition-all active:scale-95 disabled:opacity-50"
+              style={{ backgroundColor: '#FC8019' }}
+            >
+              {saving ? '⏳ Saving...' : 'Save Changes'}
+            </button>
+            {saveMsg && (
+              <p className="text-center text-sm font-semibold mt-3" style={{ color: saveMsg.includes('✅') ? '#2d6a4f' : '#dc2626' }}>
+                {saveMsg}
+              </p>
+            )}
+          </div>
+
+          <p className="text-center text-xs mt-4 px-6" style={{ color: '#b5b8c0' }}>
+            Your name will be used in SOS alerts sent to trusted contacts.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Main Profile View ─────────────────────────────────────────────────────
   return (
     <div className="min-h-screen pb-24 md:pb-6" style={{ backgroundColor: '#F2F2F2' }}>
       <div className="max-w-md mx-auto">
 
         {/* ── I'm Safe Banner — only when SOS is active ── */}
         {sosActive && (
-          <div
-            className="text-white px-4 py-3 flex items-center justify-between"
-            style={{ backgroundColor: '#dc2626' }}
-          >
+          <div className="text-white px-4 py-3 flex items-center justify-between" style={{ backgroundColor: '#dc2626' }}>
             <div>
               <p className="text-sm font-black animate-pulse">🆘 SOS Active</p>
               <p className="text-xs opacity-80 mt-0.5">Sending alerts every 3 min</p>
@@ -87,10 +202,7 @@ export default function Profile() {
 
         {/* ── Recording indicator ── */}
         {isRecording && (
-          <div
-            className="text-white px-4 py-2 flex items-center gap-2"
-            style={{ backgroundColor: '#7c3aed' }}
-          >
+          <div className="text-white px-4 py-2 flex items-center gap-2" style={{ backgroundColor: '#7c3aed' }}>
             <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <p className="text-xs font-semibold">Recording in progress…</p>
           </div>
@@ -102,37 +214,17 @@ export default function Profile() {
           <div
             onClick={handleAvatarTap}
             className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-black cursor-pointer select-none shadow-lg active:opacity-80 transition-all duration-200"
-            style={{
-              backgroundColor: sosActive ? '#dc2626' : '#FC8019',
-            }}
+            style={{ backgroundColor: sosActive ? '#dc2626' : '#FC8019' }}
           >
             {sosActive ? '🆘' : initials}
           </div>
 
-
           <div className="text-center">
-            {editingName ? (
-              <input
-                autoFocus
-                value={nameValue}
-                onChange={e => setNameValue(e.target.value)}
-                onBlur={saveName}
-                onKeyDown={e => e.key === 'Enter' && saveName()}
-                className="text-center font-bold text-lg border-b-2 outline-none px-2 py-1"
-                style={{ color: '#282C3F', borderColor: '#FC8019' }}
-                placeholder="Enter your full name"
-              />
-            ) : (
-              <p
-                onClick={() => setEditingName(true)}
-                className="font-bold text-lg cursor-pointer hover:opacity-70"
-                style={{ color: '#282C3F' }}
-                title="Click to edit name"
-              >
-                {displayName} ✏️
-              </p>
-            )}
+            <p className="font-bold text-lg" style={{ color: '#282C3F' }}>{displayName}</p>
             <p className="text-sm" style={{ color: '#686B78' }}>{user?.email}</p>
+            {user?.user_metadata?.phone && (
+              <p className="text-sm" style={{ color: '#686B78' }}>+91 {user.user_metadata.phone}</p>
+            )}
           </div>
           <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-4 py-1.5">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
