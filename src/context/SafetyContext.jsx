@@ -88,6 +88,9 @@ export function SafetyProvider({ children }) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    // Get the user's name from account metadata
+    const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Someone'
+
     const { data: contacts } = await supabase
       .from('sos_contacts')
       .select('*')
@@ -95,7 +98,7 @@ export function SafetyProvider({ children }) {
 
     if (!contacts || contacts.length === 0) return
 
-    const message = `URGENT: I need help! My location: ${mapLink} — Time: ${new Date().toLocaleString()}`
+    const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
     const phones  = contacts.filter(c => c.phone).map(c => c.phone)
 
     // Send SMS via Fast2SMS
@@ -115,7 +118,7 @@ export function SafetyProvider({ children }) {
       const link2 = gps2
         ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
         : mapLink
-      const retryMsg = `URGENT (retry): I still need help! Location: ${link2} — Time: ${new Date().toLocaleString()}`
+      const retryMsg = `URGENT (retry): ${userName} still needs help!\nLocation: ${link2}\nTime: ${new Date().toLocaleString()}`
       sendSMS(phones, retryMsg)
     }, 3 * 60 * 1000)
   }, [sosActive, sendSMS])
@@ -143,7 +146,10 @@ export function SafetyProvider({ children }) {
         console.error('[Safety] ❌ No authenticated user — cannot send SOS')
         return
       }
-      console.log('[Safety] User:', user.id)
+
+      // Get the user's name from account metadata
+      const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Someone'
+      console.log('[Safety] User:', user.id, 'Name:', userName)
 
       const { data: contacts, error: contactsErr } = await supabase
         .from('sos_contacts')
@@ -162,7 +168,7 @@ export function SafetyProvider({ children }) {
 
       console.log('[Safety] Found', contacts.length, 'contacts:', contacts.map(c => c.phone))
 
-      const message = `URGENT: I need help! My location: ${mapLink} — Time: ${new Date().toLocaleString()}`
+      const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
       if (phones.length === 0) {
