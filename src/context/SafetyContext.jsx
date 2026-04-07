@@ -33,7 +33,7 @@ export function SafetyProvider({ children }) {
     )
   })
 
-  // ─── SMS — Textbelt API proxy (FREE) + native sms: fallback ─────────────────
+  // ─── SMS via Twilio (FREE trial) — server-side API proxy ────────────────────
   const sendSMS = useCallback(async (numbers, message) => {
     if (numbers.length === 0) {
       console.warn('[Safety] sendSMS called with 0 numbers — skipping')
@@ -42,9 +42,6 @@ export function SafetyProvider({ children }) {
 
     console.log('[Safety] Sending SMS to:', numbers.join(', '))
 
-    let apiSucceeded = false
-
-    // ── Layer 1: Textbelt via Vercel API proxy (FREE — 1 SMS/day) ────────────
     try {
       const res = await fetch('/api/send-sms', {
         method: 'POST',
@@ -58,28 +55,21 @@ export function SafetyProvider({ children }) {
       }
 
       const data = await res.json()
-      console.log('[Safety] Textbelt API response (status ' + res.status + '):', data)
+      console.log('[Safety] Twilio API response (status ' + res.status + '):', data)
 
-      if (data.return || data.results?.some(r => r.success)) {
-        console.log('[Safety] ✅ SMS sent via Textbelt!')
-        apiSucceeded = true
+      if (data.return) {
+        console.log('[Safety] ✅ SMS sent via Twilio!', data.results)
       } else {
-        console.warn('[Safety] Textbelt could not deliver:', data.message || JSON.stringify(data.results))
+        console.error('[Safety] ❌ Twilio SMS failed:', data.message, data.results)
       }
     } catch (err) {
-      console.warn('[Safety] API proxy failed:', err.message)
-    }
-
-    // ── Layer 2: Native SMS app fallback (opens phone's SMS with pre-filled message) ──
-    if (!apiSucceeded) {
-      console.log('[Safety] Falling back to native SMS app...')
+      console.error('[Safety] API proxy error:', err.message)
+      // Fallback: open native SMS app with pre-filled message
       try {
         const smsBody = encodeURIComponent(message)
-        const smsNumbers = numbers.join(',')
-        // sms: URI opens the phone's built-in SMS app — 100% free, works offline
-        const smsLink = `sms:${smsNumbers}?body=${smsBody}`
+        const smsLink = `sms:${numbers.join(',')}?body=${smsBody}`
         window.open(smsLink, '_self')
-        console.log('[Safety] ✅ Opened native SMS app with pre-filled message')
+        console.log('[Safety] ✅ Opened native SMS app as fallback')
       } catch (e) {
         console.error('[Safety] Native SMS fallback failed:', e.message)
       }
