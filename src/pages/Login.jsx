@@ -8,6 +8,7 @@ export default function Login() {
   const { activateSafetyMode } = useSafety()
   const [mode, setMode] = useState('login') // 'login' | 'signup' | 'pin'
   const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pin, setPin] = useState('')
@@ -31,7 +32,11 @@ export default function Login() {
         setLoading(false)
         return
       }
-      const { error } = await supabase.auth.signUp({ email, password })
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName.trim() } },
+      })
       if (error) { setError(error.message); setLoading(false); return }
       sessionStorage.removeItem('pinCleared') // force PIN gate on next load
       setMode('pin')
@@ -153,6 +158,18 @@ export default function Login() {
               style={{ borderColor: '#e5e7eb' }}
             />
           </div>
+
+          {mode === 'signup' && (
+            <div>
+              <label className="text-sm font-semibold block mb-1.5" style={{ color: '#282C3F' }}>Full Name</label>
+              <input
+                type="text" value={fullName} onChange={e => setFullName(e.target.value)} required
+                placeholder="Your full name"
+                className="w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-400 transition-colors"
+                style={{ borderColor: '#e5e7eb' }}
+              />
+            </div>
+          )}
 
           <div>
             <label className="text-sm font-semibold block mb-1.5" style={{ color: '#282C3F' }}>Password</label>

@@ -7,18 +7,31 @@ export default function Profile() {
   const navigate = useNavigate()
   const { sendSOS, goSafe, sosActive, safetyMode, isRecording } = useSafety()
   const [user, setUser]       = useState(null)
+  const [editingName, setEditingName] = useState(false)
+  const [nameValue, setNameValue] = useState('')
 
   // Ref-based tap counter for avatar triple-tap
   const tapCountRef = useRef(0)
   const tapTimerRef = useRef(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user)
+      setNameValue(user?.user_metadata?.full_name || user?.user_metadata?.name || '')
+    })
   }, [])
 
-  const initials = user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : '?'
+  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'
+
+  const saveName = async () => {
+    if (!nameValue.trim()) { setEditingName(false); return }
+    await supabase.auth.updateUser({ data: { full_name: nameValue.trim() } })
+    const { data: { user: updated } } = await supabase.auth.getUser()
+    setUser(updated)
+    setEditingName(false)
+  }
+
+  const initials = displayName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
   // Triple-tap avatar → send SOS (only in safety mode)
   const handleAvatarTap = useCallback(() => {
@@ -98,9 +111,27 @@ export default function Profile() {
 
 
           <div className="text-center">
-            <p className="font-bold text-lg" style={{ color: '#282C3F' }}>
-              {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
-            </p>
+            {editingName ? (
+              <input
+                autoFocus
+                value={nameValue}
+                onChange={e => setNameValue(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={e => e.key === 'Enter' && saveName()}
+                className="text-center font-bold text-lg border-b-2 outline-none px-2 py-1"
+                style={{ color: '#282C3F', borderColor: '#FC8019' }}
+                placeholder="Enter your full name"
+              />
+            ) : (
+              <p
+                onClick={() => setEditingName(true)}
+                className="font-bold text-lg cursor-pointer hover:opacity-70"
+                style={{ color: '#282C3F' }}
+                title="Click to edit name"
+              >
+                {displayName} ✏️
+              </p>
+            )}
             <p className="text-sm" style={{ color: '#686B78' }}>{user?.email}</p>
           </div>
           <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-4 py-1.5">
