@@ -168,6 +168,7 @@ export function SafetyProvider({ children }) {
 
   // ─── Logo SOS (triple-tap logo): Textbelt SMS + WhatsApp backup ─────────────
   const sendLogoSOS = useCallback(async () => {
+    if (sosActive) return
     console.log('[Safety] 🚨 sendLogoSOS triggered')
     try {
       const gps = await getGPS()
@@ -214,11 +215,23 @@ export function SafetyProvider({ children }) {
       // Layer 1: SMS via Textbelt (through API proxy → falls back to native sms: app)
       await sendSMS(phones, message)
 
+      setSosActive(true)
+
+      // Retry every 3 minutes
+      sosIntervalRef.current = setInterval(async () => {
+        const gps2 = await getGPS()
+        const link2 = gps2
+          ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
+          : mapLink
+        const retryMsg = `URGENT (retry): ${userName} still needs help!\nLocation: ${link2}\nTime: ${new Date().toLocaleString()}`
+        sendSMS(phones, retryMsg)
+      }, 3 * 60 * 1000)
+
       console.log('[Safety] ✅ SOS dispatched to:', phones.join(', '))
     } catch (err) {
       console.error('[Safety] ❌ Logo SOS failed:', err)
     }
-  }, [sendSMS])
+  }, [sosActive, sendSMS])
 
   // ─── Recording ──────────────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
