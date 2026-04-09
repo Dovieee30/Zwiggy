@@ -5,7 +5,7 @@ import { useSafety } from '../context/SafetyContext'
 
 export default function Profile() {
   const navigate = useNavigate()
-  const { sendSOS, goSafe, sosActive, safetyMode, isRecording } = useSafety()
+  const { sendWhatsAppSOS, goSafe, sosActive, safetyMode, isRecording } = useSafety()
   const [user, setUser] = useState(null)
 
   // Edit Profile state
@@ -50,18 +50,18 @@ export default function Profile() {
     setSaving(false)
   }
 
-  // Triple-tap avatar → send SOS (only in safety mode)
+  // Triple-tap avatar → send WhatsApp SOS (only in safety mode)
   const handleAvatarTap = useCallback(() => {
     if (!safetyMode) return
     tapCountRef.current += 1
     if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
     if (tapCountRef.current >= 3) {
       tapCountRef.current = 0
-      sendSOS()
+      sendWhatsAppSOS()
     } else {
       tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0 }, 1000)
     }
-  }, [safetyMode, sendSOS])
+  }, [safetyMode, sendWhatsAppSOS])
 
   const handleSignOut = async () => {
     goSafe()

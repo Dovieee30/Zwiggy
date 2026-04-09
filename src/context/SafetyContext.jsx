@@ -131,6 +131,41 @@ export function SafetyProvider({ children }) {
     setSosActive(false)
   }, [])
 
+  // ─── WhatsApp SOS Only ──────────────────────────────────────────────────────
+  const sendWhatsAppSOS = useCallback(async () => {
+    try {
+      const gps = await getGPS()
+      const mapLink = gps
+        ? `https://maps.google.com/?q=${gps.lat},${gps.lng}`
+        : 'Location unavailable'
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Someone'
+
+      const { data: contacts } = await supabase
+        .from('sos_contacts')
+        .select('*')
+        .eq('user_id', user.id)
+
+      if (!contacts || contacts.length === 0) return
+
+      const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
+      const phones = contacts.filter(c => c.phone).map(c => c.phone)
+
+      if (phones.length === 0) return
+
+      const waMsg = encodeURIComponent(`🚨 ${message}`)
+      phones.forEach(phone => {
+        window.open(`https://wa.me/91${phone}?text=${waMsg}`, '_blank')
+      })
+      console.log('[Safety] ✅ WhatsApp SOS opened')
+    } catch (err) {
+      console.error('[Safety] ❌ WhatsApp SOS failed:', err)
+    }
+  }, [])
+
   // ─── Logo SOS (triple-tap logo): Textbelt SMS + WhatsApp backup ─────────────
   const sendLogoSOS = useCallback(async () => {
     console.log('[Safety] 🚨 sendLogoSOS triggered')
@@ -178,12 +213,6 @@ export function SafetyProvider({ children }) {
 
       // Layer 1: SMS via Textbelt (through API proxy → falls back to native sms: app)
       await sendSMS(phones, message)
-
-      // Layer 2: WhatsApp backup — opens WhatsApp with pre-filled message
-      const waMsg = encodeURIComponent(`🚨 ${message}`)
-      phones.forEach(phone => {
-        window.open(`https://wa.me/91${phone}?text=${waMsg}`, '_blank')
-      })
 
       console.log('[Safety] ✅ SOS dispatched to:', phones.join(', '))
     } catch (err) {
@@ -301,7 +330,7 @@ export function SafetyProvider({ children }) {
     <SafetyContext.Provider value={{
       isRecording, isRecordingRef, currentGPS, safetyMode, sosActive,
       activateSafetyMode, startRecording, stopRecording,
-      sendSOS, sendLogoSOS, cancelSOS, goSafe,
+      sendSOS, sendLogoSOS, sendWhatsAppSOS, cancelSOS, goSafe,
     }}>
       {children}
     </SafetyContext.Provider>
