@@ -15,6 +15,7 @@ import Orders     from './pages/Orders'
 import Profile    from './pages/Profile'
 import Vault      from './pages/Vault'
 import SavedAddresses from './pages/SavedAddresses'
+import LiveTrack  from './pages/LiveTrack'
 
 import { supabase } from './supabaseClient'
 
@@ -128,6 +129,7 @@ function AppShell() {
       <SafetyLayer />
       <Routes>
         <Route path="/login"           element={<Login />} />
+        <Route path="/live/:userId"    element={<LiveTrack />} />
         <Route path="/"                element={<ProtectedRoute><Home /></ProtectedRoute>} />
         <Route path="/restaurant/:id"  element={<ProtectedRoute><Restaurant /></ProtectedRoute>} />
         <Route path="/cart"            element={<ProtectedRoute><Cart /></ProtectedRoute>} />

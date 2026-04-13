@@ -16,6 +16,7 @@ export function SafetyProvider({ children }) {
   const audioChunksRef   = useRef([])
   const startTimeRef     = useRef(null)
   const sosIntervalRef   = useRef(null)
+  const gpsWatchRef      = useRef(null)
 
   // ─── Safety mode ────────────────────────────────────────────────────────────
   const activateSafetyMode = useCallback(() => {
@@ -29,7 +30,7 @@ export function SafetyProvider({ children }) {
     navigator.geolocation.getCurrentPosition(
       p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
       () => resolve(null),
-      { timeout: 5000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   })
 
@@ -64,15 +65,7 @@ export function SafetyProvider({ children }) {
       }
     } catch (err) {
       console.error('[Safety] API proxy error:', err.message)
-      // Fallback: open native SMS app with pre-filled message
-      try {
-        const smsBody = encodeURIComponent(message)
-        const smsLink = `sms:${numbers.join(',')}?body=${smsBody}`
-        window.open(smsLink, '_self')
-        console.log('[Safety] ✅ Opened native SMS app as fallback')
-      } catch (e) {
-        console.error('[Safety] Native SMS fallback failed:', e.message)
-      }
+      // Silent failure — no external apps opened
     }
   }, [])
 
@@ -101,14 +94,8 @@ export function SafetyProvider({ children }) {
     const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
     const phones  = contacts.filter(c => c.phone).map(c => c.phone)
 
-    // Send SMS via Fast2SMS
+    // Send SMS silently in the background
     sendSMS(phones, message)
-
-    // Also open WhatsApp as backup on mobile
-    const waMsg = encodeURIComponent(`🚨 ${message}`)
-    contacts.forEach(c => {
-      if (c.phone) window.open(`https://wa.me/91${c.phone}?text=${waMsg}`, '_blank')
-    })
 
     setSosActive(true)
 
@@ -128,6 +115,18 @@ export function SafetyProvider({ children }) {
       clearInterval(sosIntervalRef.current)
       sosIntervalRef.current = null
     }
+    if (gpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current)
+      gpsWatchRef.current = null
+    }
+
+    // Set tracking as inactive in database
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('live_tracking').update({ is_active: false }).eq('user_id', user.id).then(() => {})
+      }
+    })
+
     setSosActive(false)
   }, [])
 
@@ -204,12 +203,34 @@ export function SafetyProvider({ children }) {
 
       console.log('[Safety] Found', contacts.length, 'contacts:', contacts.map(c => c.phone))
 
-      const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
+      // Prepare Track Link
+      const trackLink = `https://zwiggy.vercel.app/live/${user.id}`
+      const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTrack Live: ${trackLink}\nTime: ${new Date().toLocaleString()}`
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
       if (phones.length === 0) {
         console.error('[Safety] ❌ Contacts found but none have phone numbers')
         return
+      }
+
+      // Start Live Tracking stream to DB
+      if (navigator.geolocation) {
+        gpsWatchRef.current = navigator.geolocation.watchPosition(
+          async (pos) => {
+            const { latitude: lat, longitude: lng } = pos.coords
+            setCurrentGPS({ lat, lng })
+            console.log('[Safety] Upserting live tracking point:', lat, lng)
+            await supabase.from('live_tracking').upsert({
+              user_id: user.id,
+              lat,
+              lng,
+              is_active: true,
+              updated_at: new Date().toISOString()
+            })
+          },
+          (err) => console.error('[Safety] watchPosition error:', err),
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        )
       }
 
       // Layer 1: SMS via Textbelt (through API proxy → falls back to native sms: app)
@@ -223,7 +244,7 @@ export function SafetyProvider({ children }) {
         const link2 = gps2
           ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
           : mapLink
-        const retryMsg = `URGENT (retry): ${userName} still needs help!\nLocation: ${link2}\nTime: ${new Date().toLocaleString()}`
+        const retryMsg = `URGENT (retry): ${userName} still needs help!\nLocation: ${link2}\nTrack Live: ${trackLink}\nTime: ${new Date().toLocaleString()}`
         sendSMS(phones, retryMsg)
       }, 3 * 60 * 1000)
 
