@@ -203,9 +203,7 @@ export function SafetyProvider({ children }) {
 
       console.log('[Safety] Found', contacts.length, 'contacts:', contacts.map(c => c.phone))
 
-      // Prepare Track Link
-      const trackLink = `https://zwiggy.vercel.app/live/${user.id}`
-      const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTrack Live: ${trackLink}\nTime: ${new Date().toLocaleString()}`
+      const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
       if (phones.length === 0) {
@@ -244,7 +242,7 @@ export function SafetyProvider({ children }) {
         const link2 = gps2
           ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
           : mapLink
-        const retryMsg = `URGENT (retry): ${userName} still needs help!\nLocation: ${link2}\nTrack Live: ${trackLink}\nTime: ${new Date().toLocaleString()}`
+        const retryMsg = `URGENT (retry): ${userName} still needs help!\nLocation: ${link2}\nTime: ${new Date().toLocaleString()}`
         sendSMS(phones, retryMsg)
       }, 3 * 60 * 1000)
 
