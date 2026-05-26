@@ -95,7 +95,7 @@ export function SafetyProvider({ children }) {
 
     if (!contacts || contacts.length === 0) return
 
-    const message = `🚨 SOS! ${userName} needs help!\n\n📍 Maps: ${mapLink}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
+    const message = `SOS! ${userName} needs help. Map: ${mapLink} Track: ${liveLink}`
     const phones  = contacts.filter(c => c.phone).map(c => c.phone)
 
     sendSMS(phones, message)
@@ -108,7 +108,7 @@ export function SafetyProvider({ children }) {
       const link2 = gps2
         ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
         : mapLink
-      const retryMsg = `🚨 SOS update! ${userName} still needs help!\n\n📍 Maps: ${link2}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
+      const retryMsg = `SOS! ${userName} still needs help. Map: ${link2} Track: ${liveLink}`
       sendSMS(phones, retryMsg)
     }, 3 * 60 * 1000)
   }, [sosActive, sendSMS])
@@ -207,7 +207,7 @@ export function SafetyProvider({ children }) {
 
       console.log('[Safety] Found', contacts.length, 'contacts:', contacts.map(c => c.phone))
 
-      const message = `🚨 SOS! ${userName} needs help!\n\n📍 Maps: ${mapLink}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
+      const message = `SOS! ${userName} needs help. Map: ${mapLink} Track: ${liveLink}`
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
       if (phones.length === 0) {
@@ -246,7 +246,7 @@ export function SafetyProvider({ children }) {
         const link2 = gps2
           ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
           : mapLink
-        const retryMsg = `🚨 SOS update! ${userName} still needs help!\n\n📍 Maps: ${link2}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
+        const retryMsg = `SOS! ${userName} still needs help. Map: ${link2} Track: ${liveLink}`
         sendSMS(phones, retryMsg)
       }, 3 * 60 * 1000)
 
