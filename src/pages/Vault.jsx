@@ -2,6 +2,55 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useSafety } from '../context/SafetyContext'
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
+
+import iconUrl from 'leaflet/dist/images/marker-icon.png'
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
+import iconShadow from 'leaflet/dist/images/marker-shadow.png'
+
+// Fix default marker icon for Leaflet + bundlers
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconUrl,
+  iconRetinaUrl,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+})
+
+/* ── Inline mini-map for each evidence entry ──────────── */
+function EvidenceMap({ lat, lng, timestamp }) {
+  const position = [Number(lat), Number(lng)]
+  return (
+    <div className="mt-3 rounded-xl overflow-hidden border border-white/10" style={{ height: 180 }}>
+      <MapContainer
+        center={position}
+        zoom={16}
+        scrollWheelZoom={false}
+        dragging={false}
+        zoomControl={false}
+        attributionControl={false}
+        style={{ height: '100%', width: '100%' }}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Marker position={position}>
+          <Popup>
+            <div style={{ textAlign: 'center', fontSize: 12 }}>
+              <strong>📍 Recorded Location</strong><br />
+              {Number(lat).toFixed(6)}, {Number(lng).toFixed(6)}<br />
+              <span style={{ color: '#888' }}>{timestamp}</span>
+            </div>
+          </Popup>
+        </Marker>
+      </MapContainer>
+    </div>
+  )
+}
 
 export default function Vault({ onBack }) {
   const navigate  = useNavigate()
@@ -187,13 +236,28 @@ export default function Vault({ onBack }) {
                 )}
 
                 {ev.gps_lat && ev.gps_lng ? (
-                  <a
-                    href={`https://maps.google.com/?q=${ev.gps_lat},${ev.gps_lng}`}
-                    target="_blank" rel="noreferrer"
-                    className="flex items-center gap-1.5 mt-2 text-blue-400 text-xs font-semibold"
-                  >
-                    📍 {Number(ev.gps_lat).toFixed(4)}, {Number(ev.gps_lng).toFixed(4)} — Open in Maps
-                  </a>
+                  <>
+                    {/* Embedded interactive map */}
+                    <EvidenceMap
+                      lat={ev.gps_lat}
+                      lng={ev.gps_lng}
+                      timestamp={new Date(ev.created_at).toLocaleString()}
+                    />
+                    {/* Coordinates + Google Maps link */}
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs text-gray-400 font-mono">
+                        📍 {Number(ev.gps_lat).toFixed(6)}, {Number(ev.gps_lng).toFixed(6)}
+                      </span>
+                      <a
+                        href={`https://maps.google.com/?q=${ev.gps_lat},${ev.gps_lng}`}
+                        target="_blank" rel="noreferrer"
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ backgroundColor: '#FC8019', color: 'white' }}
+                      >
+                        Open in Maps ↗
+                      </a>
+                    </div>
+                  </>
                 ) : (
                   <p className="text-xs text-gray-600 mt-2">📍 Location not captured</p>
                 )}

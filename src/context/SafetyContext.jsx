@@ -3,6 +3,9 @@ import { supabase } from '../supabaseClient'
 
 const SafetyContext = createContext()
 
+// Base URL for live tracking links — uses current origin (works in dev + production)
+const getAppUrl = () => window.location.origin
+
 export function SafetyProvider({ children }) {
   const [isRecording, setIsRecording]   = useState(false)
   const [currentGPS, setCurrentGPS]     = useState(null)
@@ -30,7 +33,8 @@ export function SafetyProvider({ children }) {
     navigator.geolocation.getCurrentPosition(
       p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
       () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      // Use 1.5s timeout + 10s cache so we don't delay the initial emergency SMS
+      { enableHighAccuracy: true, timeout: 1500, maximumAge: 10000 }
     )
   })
 
@@ -81,8 +85,8 @@ export function SafetyProvider({ children }) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Get the user's name from account metadata
     const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Someone'
+    const liveLink = `${getAppUrl()}/live/${user.id}`
 
     const { data: contacts } = await supabase
       .from('sos_contacts')
@@ -91,21 +95,20 @@ export function SafetyProvider({ children }) {
 
     if (!contacts || contacts.length === 0) return
 
-    const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
+    const message = `🚨 SOS! ${userName} needs help!\n\n📍 Maps: ${mapLink}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
     const phones  = contacts.filter(c => c.phone).map(c => c.phone)
 
-    // Send SMS silently in the background
     sendSMS(phones, message)
 
     setSosActive(true)
 
-    // Retry every 3 minutes
+    // Retry every 3 minutes with updated GPS
     sosIntervalRef.current = setInterval(async () => {
       const gps2 = await getGPS()
       const link2 = gps2
         ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
         : mapLink
-      const retryMsg = `URGENT (retry): ${userName} still needs help!\nLocation: ${link2}\nTime: ${new Date().toLocaleString()}`
+      const retryMsg = `🚨 SOS update! ${userName} still needs help!\n\n📍 Maps: ${link2}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
       sendSMS(phones, retryMsg)
     }, 3 * 60 * 1000)
   }, [sosActive, sendSMS])
@@ -142,6 +145,7 @@ export function SafetyProvider({ children }) {
       if (!user) return
 
       const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Someone'
+      const liveLink = `${getAppUrl()}/live/${user.id}`
 
       const { data: contacts } = await supabase
         .from('sos_contacts')
@@ -150,12 +154,12 @@ export function SafetyProvider({ children }) {
 
       if (!contacts || contacts.length === 0) return
 
-      const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
+      const message = `🚨 SOS! ${userName} needs help!\n\n📍 Maps: ${mapLink}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
       if (phones.length === 0) return
 
-      const waMsg = encodeURIComponent(`🚨 ${message}`)
+      const waMsg = encodeURIComponent(message)
       phones.forEach(phone => {
         window.open(`https://wa.me/91${phone}?text=${waMsg}`, '_blank')
       })
@@ -165,7 +169,7 @@ export function SafetyProvider({ children }) {
     }
   }, [])
 
-  // ─── Logo SOS (triple-tap logo): Textbelt SMS + WhatsApp backup ─────────────
+  // ─── Logo SOS (triple-tap logo): Twilio SMS + live tracking ──────────────────
   const sendLogoSOS = useCallback(async () => {
     if (sosActive) return
     console.log('[Safety] 🚨 sendLogoSOS triggered')
@@ -182,9 +186,9 @@ export function SafetyProvider({ children }) {
         return
       }
 
-      // Get the user's name from account metadata
       const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Someone'
-      console.log('[Safety] User:', user.id, 'Name:', userName)
+      const liveLink = `${getAppUrl()}/live/${user.id}`
+      console.log('[Safety] User:', user.id, 'Name:', userName, 'Live:', liveLink)
 
       const { data: contacts, error: contactsErr } = await supabase
         .from('sos_contacts')
@@ -203,7 +207,7 @@ export function SafetyProvider({ children }) {
 
       console.log('[Safety] Found', contacts.length, 'contacts:', contacts.map(c => c.phone))
 
-      const message = `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
+      const message = `🚨 SOS! ${userName} needs help!\n\n📍 Maps: ${mapLink}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
       if (phones.length === 0) {
@@ -231,18 +235,18 @@ export function SafetyProvider({ children }) {
         )
       }
 
-      // Layer 1: SMS via Textbelt (through API proxy → falls back to native sms: app)
+      // Send SMS with live tracking link
       await sendSMS(phones, message)
 
       setSosActive(true)
 
-      // Retry every 3 minutes
+      // Retry every 3 minutes with updated GPS
       sosIntervalRef.current = setInterval(async () => {
         const gps2 = await getGPS()
         const link2 = gps2
           ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
           : mapLink
-        const retryMsg = `URGENT (retry): ${userName} still needs help!\nLocation: ${link2}\nTime: ${new Date().toLocaleString()}`
+        const retryMsg = `🚨 SOS update! ${userName} still needs help!\n\n📍 Maps: ${link2}\n🔴 Live: ${liveLink}\n🕐 ${new Date().toLocaleString()}`
         sendSMS(phones, retryMsg)
       }, 3 * 60 * 1000)
 
@@ -253,6 +257,9 @@ export function SafetyProvider({ children }) {
   }, [sosActive, sendSMS])
 
   // ─── Recording ──────────────────────────────────────────────────────────────
+  const recordingGpsWatchRef = useRef(null)
+  const latestGpsRef         = useRef(null)
+
   const startRecording = useCallback(async () => {
     if (isRecordingRef.current) return
     try {
@@ -280,8 +287,19 @@ export function SafetyProvider({ children }) {
       setIsRecording(true)
       isRecordingRef.current   = true
 
-      // GPS in background
-      getGPS().then(setCurrentGPS)
+      // Continuously track GPS throughout the recording for maximum accuracy
+      latestGpsRef.current = null
+      if (navigator.geolocation) {
+        recordingGpsWatchRef.current = navigator.geolocation.watchPosition(
+          (pos) => {
+            const gps = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+            latestGpsRef.current = gps
+            setCurrentGPS(gps)
+          },
+          (err) => console.warn('[Safety] GPS watch error:', err.message),
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+        )
+      }
 
       // Auto-stop at 60s
       setTimeout(() => {
@@ -303,6 +321,15 @@ export function SafetyProvider({ children }) {
     rec.stream?.getTracks().forEach(t => t.stop())
     setIsRecording(false)
     isRecordingRef.current = false
+
+    // Stop the GPS watcher that was tracking during recording
+    if (recordingGpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(recordingGpsWatchRef.current)
+      recordingGpsWatchRef.current = null
+    }
+
+    // Use the latest GPS position captured during the recording (most accurate)
+    const finalGps = latestGpsRef.current || currentGPS
 
     if (!save) return
 
@@ -336,15 +363,15 @@ export function SafetyProvider({ children }) {
       const { error: dbErr } = await supabase.from('evidence_vault').insert({
         user_id:          user.id,
         audio_url:        audioUrl,          // null if upload failed
-        gps_lat:          currentGPS?.lat ?? null,
-        gps_lng:          currentGPS?.lng ?? null,
+        gps_lat:          finalGps?.lat ?? null,
+        gps_lng:          finalGps?.lng ?? null,
         duration_seconds: duration,
         trigger_type:     'triple_tap',
         aggression_level: 'recorded',
       })
 
       if (dbErr) console.error('[Safety] DB insert failed:', dbErr)
-      else console.log('[Safety] Evidence saved to vault ✅')
+      else console.log('[Safety] Evidence saved to vault ✅', finalGps ? `GPS: ${finalGps.lat}, ${finalGps.lng}` : 'No GPS')
 
     } catch (err) {
       console.error('[Safety] stopRecording error:', err)

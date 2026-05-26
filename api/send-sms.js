@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   const { numbers, message } = req.body || {}
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID
-  const authToken  = process.env.TWILIO_AUTH_TOKEN
+  const authToken = process.env.TWILIO_AUTH_TOKEN
   const fromNumber = process.env.TWILIO_PHONE_NUMBER
 
   console.log('[SMS Proxy] Twilio config — SID:', !!accountSid, 'Token:', !!authToken, 'From:', fromNumber)
