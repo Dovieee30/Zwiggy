@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import RestaurantCard from '../components/RestaurantCard'
+import SOSNotificationBanner from '../components/SOSNotificationBanner'
 import { useSafety } from '../context/SafetyContext'
 
 const CATEGORIES = [
@@ -28,7 +29,7 @@ function SkeletonCard() {
 }
 
 export default function Home() {
-  const { safetyMode, isRecording, isRecordingRef, startRecording, stopRecording } = useSafety()
+  const { safetyMode, isRecording, isRecordingRef, startRecording, stopRecording, sosActive, sosReplies } = useSafety()
   const [restaurants, setRestaurants] = useState([])
   const [filtered,    setFiltered]    = useState([])
   const [loading,     setLoading]     = useState(true)
@@ -85,6 +86,11 @@ export default function Home() {
       <div className="text-white text-center py-2.5 px-4 text-sm font-semibold" style={{ backgroundColor: '#FC8019' }}>
         🎉 50% OFF on first 3 orders | Use code: <span className="font-black bg-white px-1.5 rounded" style={{ color: '#FC8019' }}>WELCOME50</span>
       </div>
+
+      {/* SOS reply notification — disguised as delivery status */}
+      {sosActive && sosReplies.length > 0 && (
+        <SOSNotificationBanner replies={sosReplies} />
+      )}
 
       {/* Recording status — disguised as delivery tracker */}
       {isRecording && (

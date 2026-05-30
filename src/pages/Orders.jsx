@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { useSafety } from '../context/SafetyContext'
+import { DISGUISE_MAP, FALLBACK } from '../components/SOSNotificationBanner'
 import Vault from './Vault'
 
 const statusMap = { confirmed: 'Confirmed', delivered: 'Delivered', cancelled: 'Cancelled' }
@@ -14,7 +15,7 @@ function timeSince(dateStr) {
 }
 
 export default function Orders() {
-  const { safetyMode } = useSafety()
+  const { safetyMode, sosActive, sosReplies } = useSafety()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [showVault, setShowVault] = useState(false)
@@ -83,6 +84,38 @@ export default function Orders() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
+            {/* Disguised SOS reply cards — injected at top when SOS is active */}
+            {sosActive && sosReplies.length > 0 && sosReplies.map((r, i) => {
+              const disguise = DISGUISE_MAP[r.reply_text] || FALLBACK
+              const fakeRestaurant = r.contact_name || 'Delivery Partner'
+              const fakeTime = new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              return (
+                <div
+                  key={`sos-${r.id || i}`}
+                  className="bg-white rounded-2xl px-4 py-4 shadow-sm flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow select-none"
+                  style={{ borderLeft: `4px solid ${disguise.color}` }}
+                >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFF3E8' }}>
+                    <span className="text-2xl">{disguise.icon}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm truncate" style={{ color: '#282C3F' }}>
+                      Order from {fakeRestaurant}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: '#686B78' }}>
+                      {disguise.fake}
+                    </p>
+                    <p className="text-xs mt-1 font-medium" style={{ color: '#FC8019' }}>{fakeTime}</p>
+                  </div>
+                  <div className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: disguise.color }}></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ backgroundColor: disguise.color }}></span>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Real orders */}
             {orders.map((d) => {
               const restaurantName = d.restaurants?.name || 'Restaurant'
               const subtitle = `₹${d.total} • ${statusMap[d.status] || d.status}`

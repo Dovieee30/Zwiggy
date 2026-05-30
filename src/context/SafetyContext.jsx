@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useRef, useCallback } from 'react'
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 
 const SafetyContext = createContext()
 
-// Base URL for live tracking links — uses current origin (works in dev + production)
-const getAppUrl = () => window.location.origin
+// Temporary URL for mobile testing using localtunnel
+const getAppUrl = () => 'https://soft-rocks-help.loca.lt'
 
 export function SafetyProvider({ children }) {
   const [isRecording, setIsRecording]   = useState(false)
@@ -13,6 +13,8 @@ export function SafetyProvider({ children }) {
     () => localStorage.getItem('appMode') === 'safety'
   )
   const [sosActive, setSosActive]       = useState(false)
+  const [sosReplies, setSosReplies]     = useState([])
+  const sosChannelRef = useRef(null)
 
   const isRecordingRef   = useRef(false)
   const mediaRecorderRef = useRef(null)
@@ -33,8 +35,8 @@ export function SafetyProvider({ children }) {
     navigator.geolocation.getCurrentPosition(
       p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
       () => resolve(null),
-      // Use 1.5s timeout + 10s cache so we don't delay the initial emergency SMS
-      { enableHighAccuracy: true, timeout: 1500, maximumAge: 10000 }
+      // Increased to 5s to give the device time to acquire location
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
     )
   })
 
@@ -131,6 +133,13 @@ export function SafetyProvider({ children }) {
     })
 
     setSosActive(false)
+    setSosReplies([])
+
+    // Unsubscribe from SOS replies channel
+    if (sosChannelRef.current) {
+      supabase.removeChannel(sosChannelRef.current)
+      sosChannelRef.current = null
+    }
   }, [])
 
   // ─── WhatsApp SOS Only ──────────────────────────────────────────────────────
@@ -207,7 +216,15 @@ export function SafetyProvider({ children }) {
 
       console.log('[Safety] Found', contacts.length, 'contacts:', contacts.map(c => c.phone))
 
-      const message = `SOS! ${userName} needs help. Map: ${mapLink} Track: ${liveLink}`
+      const message = `🚨 EMERGENCY 🚨
+${userName} triggered an SOS!
+
+📍 Last Known Map:
+${mapLink}
+
+📡 Live Tracking Link:
+${liveLink}`;
+      
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
       if (phones.length === 0) {
@@ -239,6 +256,26 @@ export function SafetyProvider({ children }) {
       await sendSMS(phones, message)
 
       setSosActive(true)
+      setSosReplies([])
+
+      // Subscribe to SOS replies from contacts via Supabase Realtime
+      if (sosChannelRef.current) {
+        supabase.removeChannel(sosChannelRef.current)
+      }
+      sosChannelRef.current = supabase.channel(`sos_replies_${user.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'sos_replies',
+          filter: `user_id=eq.${user.id}`,
+        }, (payload) => {
+          if (payload.new) {
+            console.log('[Safety] 📩 SOS reply received:', payload.new)
+            setSosReplies(prev => [payload.new, ...prev])
+          }
+        })
+        .subscribe()
+      console.log('[Safety] 📡 Subscribed to sos_replies for user:', user.id)
 
       // Retry every 3 minutes with updated GPS
       sosIntervalRef.current = setInterval(async () => {
@@ -246,7 +283,7 @@ export function SafetyProvider({ children }) {
         const link2 = gps2
           ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
           : mapLink
-        const retryMsg = `SOS! ${userName} still needs help. Map: ${link2} Track: ${liveLink}`
+        const retryMsg = `🚨 SOS UPDATE 🚨\n${userName} still needs help.\n\n📍 Map:\n${link2}\n\n📡 Live Track:\n${liveLink}`
         sendSMS(phones, retryMsg)
       }, 3 * 60 * 1000)
 
@@ -379,6 +416,11 @@ export function SafetyProvider({ children }) {
   }, [currentGPS])
 
   // ─── "I'm Safe" — stop everything at once ───────────────────────────────────
+  // ─── Clear SOS replies (used when dismissing notifications) ─────────────────
+  const clearSosReplies = useCallback(() => {
+    setSosReplies([])
+  }, [])
+
   const goSafe = useCallback(() => {
     cancelSOS()
     if (isRecordingRef.current) stopRecording(false) // discard — emergency stop
@@ -387,9 +429,9 @@ export function SafetyProvider({ children }) {
 
   return (
     <SafetyContext.Provider value={{
-      isRecording, isRecordingRef, currentGPS, safetyMode, sosActive,
+      isRecording, isRecordingRef, currentGPS, safetyMode, sosActive, sosReplies,
       activateSafetyMode, startRecording, stopRecording,
-      sendSOS, sendLogoSOS, sendWhatsAppSOS, cancelSOS, goSafe,
+      sendSOS, sendLogoSOS, sendWhatsAppSOS, cancelSOS, goSafe, clearSosReplies,
     }}>
       {children}
     </SafetyContext.Provider>
