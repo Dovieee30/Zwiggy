@@ -1,0 +1,6 @@
+{
+  "appId": "com.zwiggy.app",
+  "appName": "Zwiggy",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
