@@ -3,8 +3,8 @@ import { supabase } from '../supabaseClient'
 
 const SafetyContext = createContext()
 
-// Temporary URL for mobile testing using localtunnel
-const getAppUrl = () => 'https://soft-rocks-help.loca.lt'
+// Base URL for live tracking links — uses current origin (works in dev + production)
+const getAppUrl = () => window.location.origin
 
 export function SafetyProvider({ children }) {
   const [isRecording, setIsRecording]   = useState(false)
@@ -216,14 +216,7 @@ export function SafetyProvider({ children }) {
 
       console.log('[Safety] Found', contacts.length, 'contacts:', contacts.map(c => c.phone))
 
-      const message = `🚨 EMERGENCY 🚨
-${userName} triggered an SOS!
-
-📍 Last Known Map:
-${mapLink}
-
-📡 Live Tracking Link:
-${liveLink}`;
+      const message = `SOS! ${userName} needs help! Map: ${mapLink} Live: ${liveLink}`
       
       const phones = contacts.filter(c => c.phone).map(c => c.phone)
 
@@ -259,11 +252,13 @@ ${liveLink}`;
       setSosReplies([])
 
       // Subscribe to SOS replies from contacts via Supabase Realtime
-      if (sosChannelRef.current) {
-        supabase.removeChannel(sosChannelRef.current)
-      }
-      sosChannelRef.current = supabase.channel(`sos_replies_${user.id}`)
-        .on('postgres_changes', {
+      try {
+        if (sosChannelRef.current) {
+          await supabase.removeChannel(sosChannelRef.current)
+          sosChannelRef.current = null
+        }
+        const channel = supabase.channel(`sos_replies_${user.id}`)
+        channel.on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
           table: 'sos_replies',
@@ -274,8 +269,12 @@ ${liveLink}`;
             setSosReplies(prev => [payload.new, ...prev])
           }
         })
-        .subscribe()
-      console.log('[Safety] 📡 Subscribed to sos_replies for user:', user.id)
+        channel.subscribe()
+        sosChannelRef.current = channel
+        console.log('[Safety] 📡 Subscribed to sos_replies for user:', user.id)
+      } catch (channelErr) {
+        console.warn('[Safety] ⚠️ Realtime subscription failed (SOS still sent):', channelErr.message)
+      }
 
       // Retry every 3 minutes with updated GPS
       sosIntervalRef.current = setInterval(async () => {
@@ -283,7 +282,7 @@ ${liveLink}`;
         const link2 = gps2
           ? `https://maps.google.com/?q=${gps2.lat},${gps2.lng}`
           : mapLink
-        const retryMsg = `🚨 SOS UPDATE 🚨\n${userName} still needs help.\n\n📍 Map:\n${link2}\n\n📡 Live Track:\n${liveLink}`
+        const retryMsg = `SOS UPDATE: ${userName} still needs help. Map: ${link2} Live: ${liveLink}`
         sendSMS(phones, retryMsg)
       }, 3 * 60 * 1000)
 

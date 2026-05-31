@@ -114,6 +114,8 @@ export default function Vault({ onBack }) {
   }
 
   const sendSOS = async () => {
+    setSosStatus('📡 Sending SOS...')
+
     let lat = currentGPS?.lat
     let lng = currentGPS?.lng
 
@@ -128,24 +130,46 @@ export default function Vault({ onBack }) {
 
     // Fetch user info for personalized message
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setSosStatus('❌ Not logged in'); return }
     const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Someone'
+    const liveLink = `${window.location.origin}/live/${user.id}`
 
-    const msg = encodeURIComponent(
-      `URGENT: ${userName} needs help!\nLocation: ${mapLink}\nTime: ${new Date().toLocaleString()}`
-    )
+    const message = `SOS! ${userName} needs help! Map: ${mapLink} Live: ${liveLink}`
 
     // Fetch contacts on-the-fly for SOS
     const { data: contacts } = await supabase.from('sos_contacts').select('*').eq('user_id', user.id)
 
-    if (!contacts || contacts.length === 0) { setSosStatus('No contacts saved!'); return }
+    if (!contacts || contacts.length === 0) { setSosStatus('❌ No contacts saved!'); return }
 
-    contacts.forEach(c => {
-      if (c.phone) window.open(`https://wa.me/91${c.phone}?text=${msg}`, '_blank')
-    })
+    const phones = contacts.filter(c => c.phone).map(c => c.phone)
+    if (phones.length === 0) { setSosStatus('❌ Contacts have no phone numbers'); return }
 
-    setSosStatus(`✅ SOS sent to ${contacts.length} contact${contacts.length > 1 ? 's' : ''}!`)
-    setTimeout(() => setSosStatus(''), 5000)
+    try {
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numbers: phones.join(','), message }),
+      })
+
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('text/html')) {
+        throw new Error('API route not available')
+      }
+
+      const data = await res.json()
+
+      if (data.return) {
+        setSosStatus(`✅ SOS SMS sent to ${phones.length} contact${phones.length > 1 ? 's' : ''}!`)
+      } else {
+        console.error('[Vault SOS] Twilio failed:', data)
+        setSosStatus(`⚠️ SMS failed — ${data.message || 'check console'}`)
+      }
+    } catch (err) {
+      console.error('[Vault SOS] API error:', err)
+      setSosStatus(`❌ SMS failed: ${err.message}`)
+    }
+
+    setTimeout(() => setSosStatus(''), 8000)
   }
 
   const deleteEvidence = async (id) => {
