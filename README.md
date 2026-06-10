@@ -4,7 +4,9 @@
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase)
 
-**Zwiggy** is a personal safety app cleverly disguised as a typical food delivery service. It allows users in distress to discreetly trigger SOS alerts and record evidence without an aggressor noticing.
+**The Problem:** Traditional safety apps fail because they are obvious. If you are in danger, opening a bright red SOS app can provoke an attacker, and phones are often checked or snatched away. 
+
+**The Solution:** Zwiggy hides in plain sight. On the surface, it looks and functions exactly like a normal food delivery app. But behind a secret PIN, it transforms into a powerful, invisible bodyguard.
 
 ---
 
@@ -18,10 +20,25 @@
 - 📱 **Triple-Tap**: Tap the Zwiggy logo 3 times.
 - 📳 **Shake-to-Escape**: Shake the phone hard to instantly cancel and return to the food menu.
 
-**What happens during an SOS?**
-- Instantly grabs your exact GPS location.
-- Sends an emergency SMS with a live-tracking link to your trusted contacts.
-- Secretly records 60 seconds of audio and saves it safely to a cloud Vault.
+---
+
+## 📐 Architecture Flow
+
+```mermaid
+graph TD
+    User([User]) -->|Opens App| UI[Food Delivery Interface]
+    UI -->|Enters Secret PIN| Safety[Safety Mode Engine]
+    Safety -->|Voice / Tap / Shake| SOS{SOS Triggered!}
+    
+    SOS -->|Grabs Location| GPS[Live GPS Tracking]
+    SOS -->|Activates Mic| Audio[Stealth Audio Recording]
+    
+    GPS --> SMS[Twilio SMS API]
+    Audio --> Vault[(Supabase Secure Vault)]
+    
+    SMS --> Contacts([Emergency Contacts])
+    Contacts -.->|Live Map & Replies| UI
+```
 
 ---
 
