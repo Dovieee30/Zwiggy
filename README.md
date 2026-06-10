@@ -1,10 +1,6 @@
 # 🚨 Zwiggy: The Personal Safety App
 
-![Zwiggy](https://img.shields.io/badge/Project-Zwiggy-FC8019?style=for-the-badge&logo=react)
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react)
-![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase)
-
-### 🛑 The Problem
+### The Problem
 Traditional safety apps fail because they are obvious. If you are in danger, opening a bright red SOS app can provoke an attacker, and phones are often checked or snatched away. 
 
 ### ✅ The Solution
