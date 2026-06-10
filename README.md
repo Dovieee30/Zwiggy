@@ -1,14 +1,14 @@
-# 🚨 Zwiggy: The Personal Safety App
+# Zwiggy: The Personal Safety App
 
 ### The Problem
 Traditional safety apps fail because they are obvious. If you are in danger, opening a bright red SOS app can provoke an attacker, and phones are often checked or snatched away. 
 
-### ✅ The Solution
+### The Solution
 Zwiggy hides in plain sight. On the surface, it looks and functions exactly like a normal food delivery app. But behind a secret PIN, it transforms into a powerful, invisible bodyguard.
 
 ---
 
-## 💡 How It Works
+## How It Works
 
 1. **The Disguise**: When opened normally, it looks and acts exactly like a food delivery app.
 2. **Safety Mode**: Entering the secret PIN (`5678`) on the login screen unlocks the hidden safety features.
@@ -20,7 +20,7 @@ Zwiggy hides in plain sight. On the surface, it looks and functions exactly like
 
 ---
 
-## 📐 Architecture Flow
+## Architecture Flow
 
 ```mermaid
 graph TD
@@ -40,7 +40,7 @@ graph TD
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Frontend**: React, Vite, Tailwind CSS
 - **Mobile Wrapper**: Capacitor.js
@@ -50,7 +50,7 @@ graph TD
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ```bash
 # Install dependencies
