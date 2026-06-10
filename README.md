@@ -1,66 +1,37 @@
-# 🚨 Zwiggy: The Camouflaged Personal Safety App
+# 🚨 Zwiggy: The Personal Safety App
 
-![Zwiggy Banner](https://img.shields.io/badge/Project-Zwiggy-FC8019?style=for-the-badge&logo=react)
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![Tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
-![Capacitor](https://img.shields.io/badge/Capacitor-119EFF?style=for-the-badge&logo=capacitor&logoColor=white)
+![Zwiggy](https://img.shields.io/badge/Project-Zwiggy-FC8019?style=for-the-badge&logo=react)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase)
 
-Zwiggy is a revolutionary **personal safety application disguised as a typical food delivery service**. Built to protect individuals in distress, it provides a discreet way to trigger SOS alerts, record evidence, and share live location data without alerting potential aggressors.
+**Zwiggy** is a personal safety app cleverly disguised as a typical food delivery service. It allows users in distress to discreetly trigger SOS alerts and record evidence without an aggressor noticing.
 
 ---
 
-## 🛑 The Problem
+## 💡 How It Works
 
-In threatening situations, victims often cannot openly open an SOS app or dial emergency services. Aggressors frequently check or confiscate phones, making traditional safety apps useless or even dangerous to use. There is a critical need for an application that provides robust security features while remaining completely undetected in plain sight.
+1. **The Disguise**: When opened normally, it looks and acts exactly like a food delivery app.
+2. **Safety Mode**: Entering the secret PIN (`5678`) on the login screen unlocks the hidden safety features.
 
----
+**Once unlocked, you can trigger an SOS in 3 ways:**
+- 🗣️ **Voice Command**: Say *"help me"* or *"bachao"* to trigger it hands-free.
+- 📱 **Triple-Tap**: Tap the Zwiggy logo 3 times.
+- 📳 **Shake-to-Escape**: Shake the phone hard to instantly cancel and return to the food menu.
 
-## 💡 How It Works: A Real-World Scenario
-
-Zwiggy is designed to be completely undetectable during a crisis. It operates through a seamless, two-tiered system:
-
-### 1. The Cover: Camouflage Mode
-When opened normally, Zwiggy functions and looks exactly like a standard food delivery application. If an aggressor demands to see the phone, the user can safely open the app without raising any suspicion. 
-
-### 2. The Engine: Safety Mode
-Behind a seemingly innocuous **PIN Gate**, the true functionality is hidden. Entering a specific secure PIN unlocks the app's internal safety engine, arming a set of invisible triggers:
-
-- 🗣️ **Ambient Voice Detection**: An active background listener continuously monitors for specific distress keywords (e.g., *"help me", "bachao"*). This allows a victim to trigger an SOS completely hands-free if their phone is hidden in a pocket or bag.
-- 📱 **Discreet Triple-Tap**: Tapping the food delivery logo three times provides a silent, tactile way to dispatch an SOS when speaking is too dangerous.
-- 📳 **Emergency Shake-to-Escape**: If the user is suddenly confronted while Safety Mode is active, violently shaking the device instantly aborts any ongoing tracking or audio recording and throws the screen back to the harmless food menu.
-
-### ⚡ Upon Activation, Zwiggy Instantly:
-1. Locks onto the user's high-accuracy **GPS coordinates**.
-2. Dispatches priority **SOS SMS messages** to pre-saved trusted contacts containing a real-time live-tracking link.
-3. Subscribes to **Realtime replies** from contacts so the user knows help is on the way.
-4. Initiates a stealth **60-second audio recording** of the surroundings to capture evidence.
-5. Securely uploads the audio and location data directly to a cloud **Vault**, ensuring the evidence survives even if the physical device is confiscated or destroyed.
+**What happens during an SOS?**
+- Instantly grabs your exact GPS location.
+- Sends an emergency SMS with a live-tracking link to your trusted contacts.
+- Secretly records 60 seconds of audio and saves it safely to a cloud Vault.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend Core**: React 18, Vite, React Router DOM
-- **Styling**: Tailwind CSS, PostCSS (Custom Zwiggy `#FC8019` theme)
-- **Native Integration**: Capacitor.js (Cross-platform compilation for iOS & Android, hardware acceleration)
-- **Backend & Database**: Supabase (PostgreSQL, Authentication, Realtime Channels)
-- **Maps & Geolocation**: React-Leaflet, Browser Geolocation API
-- **External APIs**: Twilio SMS API (via local `/api/send-sms` proxy), Web SpeechRecognition API
-
----
-
-## 📐 Architecture
-
-Zwiggy's architecture is built on a "Trojan Horse" model—a robust safety engine hidden behind a benign UI shell.
-
-1. **UI Shell & Routing**: The app shell renders standard e-commerce components (`Navbar`, `BottomNav`). The `ProtectedRoute` wrapper enforces the session and the `PinGate`.
-2. **Invisible Safety Layer (`SafetyLayer.jsx`)**: Mounted globally outside the standard view tree. It hooks into device motion APIs for shake detection and uses continuous `webkitSpeechRecognition` to monitor for distress keywords.
-3. **Safety Context (`SafetyContext.jsx`)**: The central nervous system of the app. It handles:
-   - **GPS Polling**: Continuous location tracking during an active SOS.
-   - **Media Recording**: Captures audio streams via `MediaRecorder`, converts them to Base64 blobs, and securely uploads them.
-   - **Realtime Sync**: Uses Supabase Channels (`sos_replies_`) to receive instant feedback from emergency contacts.
-4. **The Vault**: A secure Supabase table (`evidence_vault`) that stores timestamped GPS locations and audio evidence, entirely inaccessible from the "food delivery" UI.
+- **Frontend**: React, Vite, Tailwind CSS
+- **Mobile Wrapper**: Capacitor.js
+- **Database & Auth**: Supabase
+- **Maps**: React-Leaflet
+- **SMS Integration**: Twilio API
 
 ---
 
@@ -70,14 +41,8 @@ Zwiggy's architecture is built on a "Trojan Horse" model—a robust safety engin
 # Install dependencies
 npm install
 
-# Start the development server
+# Start the app locally
 npm run dev
-
-# Build for production
-npm run build
-
-# Sync with Capacitor for mobile deployment
-npx cap sync
 ```
 
-> **Note**: You must configure your `.env` file with your Supabase credentials and Twilio proxy endpoints for the SOS features to function correctly.
+> **Note**: You must add your Supabase and Twilio keys in a `.env` file for the SOS features to work.
