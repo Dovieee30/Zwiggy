@@ -28,6 +28,24 @@ function SkeletonCard() {
   )
 }
 
+function PromoBanner() {
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : hour < 21 ? 'Good evening' : 'Hungry tonight'
+  const subtitle = hour < 12
+    ? 'Start your day with a fresh breakfast 🥐'
+    : hour < 17
+    ? 'Lunchtime! Explore top-rated meals nearby'
+    : hour < 21
+    ? 'Dinner is served — order from 2000+ restaurants'
+    : 'Late night cravings? We\'ve got you covered 🌙'
+
+  return (
+    <div className="text-white text-center py-2.5 px-4 text-sm font-semibold" style={{ backgroundColor: '#FC8019' }}>
+      {greeting} 👋 {subtitle}
+    </div>
+  )
+}
+
 export default function Home() {
   const { safetyMode, isRecording, isRecordingRef, startRecording, stopRecording, sosActive, sosReplies } = useSafety()
   const [restaurants, setRestaurants] = useState([])
@@ -82,10 +100,8 @@ export default function Home() {
 
   return (
     <div className="pb-24 md:pb-6 min-h-screen" style={{ backgroundColor: '#F2F2F2' }} onClick={handleTap}>
-      {/* Promo Banner */}
-      <div className="text-white text-center py-2.5 px-4 text-sm font-semibold" style={{ backgroundColor: '#FC8019' }}>
-        🎉 50% OFF on first 3 orders | Use code: <span className="font-black bg-white px-1.5 rounded" style={{ color: '#FC8019' }}>WELCOME50</span>
-      </div>
+      {/* Rotating promo banner */}
+      <PromoBanner />
 
       {/* SOS reply notification — disguised as delivery status */}
       {safetyMode && sosActive && sosReplies.length > 0 && (
