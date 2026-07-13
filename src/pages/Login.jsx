@@ -41,7 +41,7 @@ export default function Login() {
     }
 
     // Clear pinCleared so PinGate in App.jsx shows the PIN once
-    sessionStorage.removeItem('pinCleared')
+    localStorage.removeItem('pinCleared')
     setLoading(false)
     navigate('/')
   }

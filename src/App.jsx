@@ -27,7 +27,7 @@ const SHELL_ROUTES = ['/', '/cart', '/orders', '/profile', '/addresses']
 function PinGate({ children }) {
   const { activateSafetyMode } = useSafety()
   const [cleared, setCleared]  = useState(
-    () => sessionStorage.getItem('pinCleared') === 'yes'
+    () => localStorage.getItem('pinCleared') === 'yes'
   )
   const [pin, setPin]          = useState('')
 
@@ -42,7 +42,7 @@ function PinGate({ children }) {
         } else {
           localStorage.setItem('appMode', 'normal')
         }
-        sessionStorage.setItem('pinCleared', 'yes')
+        localStorage.setItem('pinCleared', 'yes')
         setCleared(true)
       }, 300)
     }
