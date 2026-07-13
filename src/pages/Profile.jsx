@@ -171,9 +171,9 @@ export default function Profile() {
             )}
           </div>
 
-          <p className="text-center text-xs mt-4 px-6" style={{ color: '#b5b8c0' }}>
+          {safetyMode && <p className="text-center text-xs mt-4 px-6" style={{ color: '#b5b8c0' }}>
             Your name will be used in SOS alerts sent to trusted contacts.
-          </p>
+          </p>}
         </div>
       </div>
     )
@@ -185,7 +185,7 @@ export default function Profile() {
       <div className="max-w-md mx-auto">
 
         {/* ── I'm Safe Banner — only when SOS is active ── */}
-        {sosActive && (
+        {safetyMode && sosActive && (
           <div className="text-white px-4 py-3 flex items-center justify-between" style={{ backgroundColor: '#dc2626' }}>
             <div>
               <p className="text-sm font-black animate-pulse">🆘 SOS Active</p>
@@ -201,7 +201,7 @@ export default function Profile() {
         )}
 
         {/* ── Recording indicator ── */}
-        {isRecording && (
+        {safetyMode && isRecording && (
           <div className="text-white px-4 py-2 flex items-center gap-2" style={{ backgroundColor: '#7c3aed' }}>
             <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <p className="text-xs font-semibold">Recording in progress…</p>
@@ -214,9 +214,9 @@ export default function Profile() {
           <div
             onClick={handleAvatarTap}
             className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-black cursor-pointer select-none shadow-lg active:opacity-80 transition-all duration-200"
-            style={{ backgroundColor: sosActive ? '#dc2626' : '#FC8019' }}
+            style={{ backgroundColor: '#FC8019' }}
           >
-            {sosActive ? '🆘' : initials}
+            {initials}
           </div>
 
           <div className="text-center">

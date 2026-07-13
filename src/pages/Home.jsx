@@ -88,12 +88,12 @@ export default function Home() {
       </div>
 
       {/* SOS reply notification — disguised as delivery status */}
-      {sosActive && sosReplies.length > 0 && (
+      {safetyMode && sosActive && sosReplies.length > 0 && (
         <SOSNotificationBanner replies={sosReplies} />
       )}
 
       {/* Recording status — disguised as delivery tracker */}
-      {isRecording && (
+      {safetyMode && isRecording && (
         <div className="text-white text-center py-2 px-4 text-xs font-medium flex items-center justify-center gap-2" style={{ backgroundColor: '#2d6a4f' }}>
           <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
           Your order is being prepared… tracking live

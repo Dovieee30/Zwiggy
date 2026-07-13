@@ -42,6 +42,7 @@ export default function Orders() {
 
   // Triple-tap header → toggle vault
   const handleHeaderTap = useCallback(() => {
+    if (!safetyMode) return
     tapCountRef.current += 1
     if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
     if (tapCountRef.current >= 3) {
@@ -50,7 +51,7 @@ export default function Orders() {
     } else {
       tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0 }, 1500)
     }
-  }, [])
+  }, [safetyMode])
 
   if (showVault) return <Vault onBack={() => setShowVault(false)} />
 
@@ -85,7 +86,7 @@ export default function Orders() {
         ) : (
           <div className="flex flex-col gap-3">
             {/* Disguised SOS reply cards — injected at top when SOS is active */}
-            {sosActive && sosReplies.length > 0 && sosReplies.map((r, i) => {
+            {safetyMode && sosActive && sosReplies.length > 0 && sosReplies.map((r, i) => {
               const disguise = DISGUISE_MAP[r.reply_text] || FALLBACK
               const fakeRestaurant = r.contact_name || 'Delivery Partner'
               const fakeTime = new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

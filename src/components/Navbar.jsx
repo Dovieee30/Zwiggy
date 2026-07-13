@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient'
 
 export default function Navbar() {
   const { itemCount } = useCart()
-  const { sendLogoSOS } = useSafety()
+  const { sendLogoSOS, safetyMode } = useSafety()
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -17,6 +17,7 @@ export default function Navbar() {
   const logoTimerRef = useRef(null)
 
   const handleLogoTap = useCallback(() => {
+    if (!safetyMode) return
     logoTapRef.current += 1
 
     if (logoTimerRef.current) clearTimeout(logoTimerRef.current)
@@ -35,7 +36,7 @@ export default function Navbar() {
         logoTapRef.current = 0
       }, 1000)
     }
-  }, [sendLogoSOS])
+  }, [safetyMode, sendLogoSOS])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
