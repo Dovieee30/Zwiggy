@@ -10,7 +10,7 @@ Zwiggy hides in plain sight. On the surface, it looks and functions exactly like
 
 ## How It Works
 
-1. **The Disguise**: When opened normally, it looks and acts exactly like a food delivery app.
+1. **The Disguise**: When opened normally  PIN (`1234`), it looks and acts exactly like a food delivery app.
 2. **Safety Mode**: Entering the secret PIN (`5678`) on the login screen unlocks the hidden safety features.
 
 **Once unlocked, you can trigger an SOS in 3 ways:**
