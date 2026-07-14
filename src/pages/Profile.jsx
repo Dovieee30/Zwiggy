@@ -65,7 +65,7 @@ export default function Profile() {
 
   const handleSignOut = async () => {
     goSafe()
-    sessionStorage.removeItem('pinCleared')
+    localStorage.removeItem('pinCleared')
     await supabase.auth.signOut()
     localStorage.removeItem('appMode')
     navigate('/login')
