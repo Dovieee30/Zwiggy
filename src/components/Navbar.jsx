@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '../context/CartContext'
 import { useSafety } from '../context/SafetyContext'
@@ -10,7 +10,10 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
   const [sosStatus, setSosStatus] = useState('')
+  const searchTimerRef = useRef(null)
 
   // ── Triple-tap on logo → SOS ──
   const logoTapRef   = useRef(0)
@@ -42,6 +45,58 @@ export default function Navbar() {
     await supabase.auth.signOut()
     localStorage.removeItem('appMode')
     navigate('/login')
+  }
+
+  // ── Debounced search against Supabase ──
+  useEffect(() => {
+    if (!searchOpen) return
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+
+    const trimmed = query.trim()
+    if (!trimmed) {
+      setSearchResults([])
+      setSearching(false)
+      return
+    }
+
+    setSearching(true)
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('restaurants')
+          .select('*')
+          .or(`name.ilike.%${trimmed}%,cuisine_type.ilike.%${trimmed}%`)
+          .order('rating', { ascending: false })
+          .limit(20)
+
+        if (error) {
+          console.error('[Search] Supabase error:', error)
+          setSearchResults([])
+        } else {
+          setSearchResults(data || [])
+        }
+      } catch (err) {
+        console.error('[Search] Error:', err)
+        setSearchResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [query, searchOpen])
+
+  // Reset search when overlay closes
+  const closeSearch = () => {
+    setSearchOpen(false)
+    setQuery('')
+    setSearchResults([])
+  }
+
+  const handleResultClick = (id) => {
+    closeSearch()
+    navigate(`/restaurant/${id}`)
   }
 
   return (
@@ -119,7 +174,7 @@ export default function Navbar() {
       {searchOpen && (
         <div className="fixed inset-0 bg-white z-[100] flex flex-col fade-in">
           <div className="flex items-center gap-3 p-4 border-b border-gray-100 shadow-sm">
-            <button onClick={() => setSearchOpen(false)} className="p-2 rounded-full hover:bg-gray-100">
+            <button onClick={closeSearch} className="p-2 rounded-full hover:bg-gray-100">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
@@ -137,10 +192,70 @@ export default function Navbar() {
               <button onClick={() => setQuery('')} className="p-2 text-gray-400">✕</button>
             )}
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-4">
-            <div className="text-7xl">🔍</div>
-            <p className="font-semibold text-gray-500">Search for your favourite food</p>
-            <p className="text-sm">Biryani, Pizza, Burgers and more...</p>
+
+          {/* Search results area */}
+          <div className="flex-1 overflow-y-auto">
+            {!query.trim() ? (
+              /* Empty state — no query yet */
+              <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-4">
+                <div className="text-7xl">🔍</div>
+                <p className="font-semibold text-gray-500">Search for your favourite food</p>
+                <p className="text-sm">Biryani, Pizza, Burgers and more...</p>
+              </div>
+            ) : searching ? (
+              /* Loading state */
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 animate-pulse">
+                    <div className="w-14 h-14 rounded-xl bg-gray-200 flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-3/4" />
+                      <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : searchResults.length === 0 ? (
+              /* No results */
+              <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
+                <div className="text-5xl">😕</div>
+                <p className="font-semibold text-gray-500">No results for "{query}"</p>
+                <p className="text-sm">Try searching for a different restaurant or cuisine</p>
+              </div>
+            ) : (
+              /* Results list */
+              <div className="p-4 space-y-2">
+                <p className="text-xs font-semibold mb-3" style={{ color: '#686B78' }}>
+                  {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
+                </p>
+                {searchResults.map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => handleResultClick(r.id)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <img
+                      src={r.image_url || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=100&h=100&fit=crop&auto=format'}
+                      alt={r.name}
+                      className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
+                      onError={e => { e.target.src = 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=100&h=100&fit=crop&auto=format' }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm truncate" style={{ color: '#282C3F' }}>{r.name}</p>
+                      <p className="text-xs truncate mt-0.5" style={{ color: '#686B78' }}>{r.cuisine_type}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs font-bold text-green-700">⭐ {r.rating?.toFixed(1) || '4.2'}</span>
+                        <span className="text-xs" style={{ color: '#686B78' }}>•</span>
+                        <span className="text-xs" style={{ color: '#686B78' }}>{r.delivery_time || '30-40 min'}</span>
+                      </div>
+                    </div>
+                    <svg className="w-4 h-4 flex-shrink-0" style={{ color: '#ccc' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

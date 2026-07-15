@@ -295,6 +295,12 @@ export function SafetyProvider({ children }) {
   // ─── Recording ──────────────────────────────────────────────────────────────
   const recordingGpsWatchRef = useRef(null)
   const latestGpsRef         = useRef(null)
+  const currentGpsRef        = useRef(null)
+
+  // Keep currentGpsRef always in sync with currentGPS state
+  useEffect(() => {
+    currentGpsRef.current = currentGPS
+  }, [currentGPS])
 
   const startRecording = useCallback(async () => {
     if (isRecordingRef.current) return
@@ -337,6 +343,17 @@ export function SafetyProvider({ children }) {
         )
       }
 
+      // Also grab an immediate one-shot GPS in case watchPosition is slow
+      try {
+        const immediateGps = await getGPS()
+        if (immediateGps && !latestGpsRef.current) {
+          latestGpsRef.current = immediateGps
+          setCurrentGPS(immediateGps)
+        }
+      } catch (e) {
+        console.warn('[Safety] Immediate GPS failed:', e)
+      }
+
       // Auto-stop at 60s
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording') stopRecording(true)
@@ -365,7 +382,18 @@ export function SafetyProvider({ children }) {
     }
 
     // Use the latest GPS position captured during the recording (most accurate)
-    const finalGps = latestGpsRef.current || currentGPS
+    // Read from ref to avoid stale closure — currentGpsRef always has the latest value
+    const finalGps = latestGpsRef.current || currentGpsRef.current
+
+    // If we still don't have GPS, do a last-ditch one-shot attempt
+    let resolvedGps = finalGps
+    if (!resolvedGps) {
+      try {
+        resolvedGps = await getGPS()
+      } catch (e) {
+        console.warn('[Safety] Last-ditch GPS failed:', e)
+      }
+    }
 
     if (!save) return
 
@@ -399,20 +427,20 @@ export function SafetyProvider({ children }) {
       const { error: dbErr } = await supabase.from('evidence_vault').insert({
         user_id:          user.id,
         audio_url:        audioUrl,          // null if upload failed
-        gps_lat:          finalGps?.lat ?? null,
-        gps_lng:          finalGps?.lng ?? null,
+        gps_lat:          resolvedGps?.lat ?? null,
+        gps_lng:          resolvedGps?.lng ?? null,
         duration_seconds: duration,
         trigger_type:     'triple_tap',
         aggression_level: 'recorded',
       })
 
       if (dbErr) console.error('[Safety] DB insert failed:', dbErr)
-      else console.log('[Safety] Evidence saved to vault ✅', finalGps ? `GPS: ${finalGps.lat}, ${finalGps.lng}` : 'No GPS')
+      else console.log('[Safety] Evidence saved to vault ✅', resolvedGps ? `GPS: ${resolvedGps.lat}, ${resolvedGps.lng}` : 'No GPS')
 
     } catch (err) {
       console.error('[Safety] stopRecording error:', err)
     }
-  }, [currentGPS])
+  }, [])
 
   // ─── "I'm Safe" — stop everything at once ───────────────────────────────────
   // ─── Clear SOS replies (used when dismissing notifications) ─────────────────
