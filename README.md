@@ -1,4 +1,4 @@
-# Zwiggy: Your Personal Safety App
+# Zwiggy - Your Personal Safety App
 
 ### The Problem
 Traditional safety apps fail because they are obvious. If you are in danger, opening a bright red SOS app can provoke an attacker, and phones are often checked or snatched away. 
